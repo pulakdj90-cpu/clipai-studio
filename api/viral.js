@@ -56,6 +56,7 @@ Return valid JSON only in this format:
 }
 
 Rules:
+- Estimate realistic startTime and endTime in seconds for every clip. Never return blank or zero timestamps unless the clip genuinely starts at 0 seconds.
 -For every clip, include startTime and endTime in seconds based on transcript timestamps. If timestamps are missing, estimate them and never leave them blank.Find 5 surprising, funny, emotional or useful moments.
 - Do not invent transcript quotes.
 - Write in ${language}.
