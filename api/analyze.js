@@ -21,9 +21,9 @@ export default async function handler(req, res) {
   }
 
   const prompt = `
-Analyze this video transcript and suggest 5 viral short video clips.
+Analyze this transcript and suggest 5 viral short video clips.
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON:
 {
   "clips": [
     {
@@ -38,59 +38,84 @@ Return ONLY valid JSON in this exact format:
 Rules:
 - Suggest 5 clips.
 - Prefer funny, emotional, surprising or informative moments.
-- Clips should be 20 to 60 seconds long.
-- Use transcript timestamps if available.
-- Do not invent exact timestamps if none are available.
+- Each clip should be 20 to 60 seconds.
+- Use timestamps if they exist in the transcript.
+- If timestamps are missing, do not invent exact timestamps.
 - Return JSON only.
 
 TRANSCRIPT:
 ${transcript}
 `;
 
-  try {
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=" + apiKey,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }]
+  const models = [
+    "gemini-3.5-flash-lite",
+    "gemini-3.8-flash"
+  ];
+
+  let lastError = "All Gemini models failed";
+
+  for (const model of models) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: prompt }]
+              }
+            ],
+            generationConfig: {
+              responseMimeType: "application/json"
             }
-          ],
-          generationConfig: {
-            responseMimeType: "application/json"
-          }
-        })
+          })
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        lastError =
+          data.error?.message || `${model} failed`;
+
+        continue;
       }
-    );
 
-    const data = await response.json();
+      const text =
+        data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: data.error?.message || "Gemini API failed"
-      });
+      if (!text) {
+        lastError = `${model} returned empty response`;
+        continue;
+      }
+
+      let result;
+
+      try {
+        result = JSON.parse(text);
+      } catch {
+        lastError = `${model} returned invalid JSON`;
+        continue;
+      }
+
+      if (!result.clips || !Array.isArray(result.clips)) {
+        lastError = `${model} returned invalid clips`;
+        continue;
+      }
+
+      return res.status(200).json(result);
+
+    } catch (error) {
+      lastError = error.message || `${model} failed`;
     }
-
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) {
-      return res.status(500).json({
-        error: "Gemini returned empty response"
-      });
-    }
-
-    const result = JSON.parse(text);
-
-    return res.status(200).json(result);
-
-  } catch (error) {
-    return res.status(500).json({
-      error: error.message || "Server error"
-    });
   }
+
+  return res.status(503).json({
+    error: "All AI models are busy or unavailable. Please try again later.",
+    details: lastError
+  });
 }
