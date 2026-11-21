@@ -1,87 +1,84 @@
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "POST method required" });
+    return res.status(405).json({ error: "Use POST" });
   }
 
-  try {
-    const { transcript } = req.body || {};
+  const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!transcript || transcript.trim().length < 50) {
-      return res.status(400).json({
-        error: "Please provide a video transcript (at least 50 characters)."
-      });
-    }
+  if (!apiKey) {
+    return res.status(500).json({ error: "API key missing" });
+  }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+  const { transcript } = req.body || {};
 
-    if (!apiKey) {
-      return res.status(500).json({
-        error: "GEMINI_API_KEY is missing"
-      });
-    }
+  if (!transcript || transcript.length < 50) {
+    return res.status(400).json({
+      error: "Please paste a longer transcript"
+    });
+  }
 
-    const prompt = `
-Analyze this video transcript and suggest the best viral short clips.
+  const models = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash"
+  ];
 
-Return ONLY valid JSON in this format:
+  const prompt = `
+Analyze this transcript and suggest 5 viral short video clips.
+
+Return ONLY JSON:
 {
   "clips": [
     {
       "start": "00:00:10",
       "end": "00:00:40",
       "title": "Clip title",
-      "reason": "Why this clip is engaging"
+      "reason": "Why it is engaging"
     }
   ]
 }
-
-Suggest up to 5 clips. Prefer interesting, emotional,
-funny, surprising, or informative moments.
 
 TRANSCRIPT:
 ${transcript}
 `;
 
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=" + apiKey,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            responseMimeType: "application/json"
-          }
-        })
+  for (const model of models) {
+    try {
+      const response = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/" +
+        model +
+        ":generateContent?key=" +
+        apiKey,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: prompt }]
+              }
+            ]
+          })
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (text) {
+          const cleaned = text.replace(/```json|```/g, "").trim();
+          return res.status(200).json(JSON.parse(cleaned));
+        }
       }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: data.error?.message || "Gemini API error"
-      });
+    } catch (error) {
+      continue;
     }
-
-    const result = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!result) {
-      return res.status(500).json({
-        error: "No response from AI"
-      });
-    }
-
-    return res.status(200).json(JSON.parse(result));
-
-  } catch (error) {
-    return res.status(500).json({
-      error: error.message || "Server error"
-    });
   }
+
+  return res.status(500).json({
+    error: "Gemini models unavailable. Please try again later."
+  });
 }
