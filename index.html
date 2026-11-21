@@ -37,7 +37,7 @@ async function analyzeClips(){
  if(transcript.length<50){status.innerHTML='<p class="error">Please paste a transcript with at least 50 characters.</p>';return;}
  button.disabled=true;button.textContent='Analyzing transcript…';status.innerHTML='<p>🤖 AI is looking for interesting moments…</p>';
  try{
-  const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({transcript})});
+  const response=await fetch('/api/viral',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({transcript})});
   const data=await response.json();
   if(!response.ok)throw new Error(data.error||'Analysis failed');
   if(!Array.isArray(data.clips)||!data.clips.length){status.innerHTML='<p>No clips returned. Try a longer transcript.</p>';return;}
