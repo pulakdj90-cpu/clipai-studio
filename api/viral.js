@@ -98,17 +98,26 @@ ${transcript}
 
     const result = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    if (!result) {
-      return res.status(500).json({
-        error: "AI returned empty response"
-      });
-    }
+if (!result) {
+  return res.status(500).json({
+    error: "AI returned empty response"
+  });
+}
 
-    return res.status(200).json({
-      ...JSON.parse(result),
-      mode: "gemini-ai"
-    });
+const parsed = JSON.parse(result);
 
+if (parsed.clips && Array.isArray(parsed.clips)) {
+  parsed.clips = parsed.clips.map((clip, index) => ({
+    ...clip,
+    startTime: Number(clip.startTime) || index * 30,
+    endTime: Number(clip.endTime) || (index * 30) + 30
+  }));
+}
+
+return res.status(200).json({
+  ...parsed,
+  mode: "gemini-ai"
+});
   } catch (error) {
     return res.status(500).json({
       error: error.message || "AI analysis failed"
