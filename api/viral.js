@@ -1,3 +1,4 @@
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Use POST method" });
@@ -21,11 +22,12 @@ export default async function handler(req, res) {
     }
 
     const prompt = `
-You are an expert viral YouTube Shorts editor.
+You are an expert YouTube Shorts editor.
 
 Analyze this transcript and find the 5 most engaging moments.
 
-Return JSON only:
+Return valid JSON only in this format:
+
 {
   "clips": [
     {
@@ -51,21 +53,23 @@ Return JSON only:
   ]
 }
 
-Choose surprising, funny, emotional or useful moments.
-Do not invent transcript quotes.
-Write in ${language}.
+Rules:
+- Find 5 surprising, funny, emotional or useful moments.
+- Do not invent transcript quotes.
+- Write in ${language}.
+- Return JSON only.
 
 TRANSCRIPT:
 ${transcript}
 `;
 
     const response = await fetch(
-      https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=" +
-        encodeURIComponent(apiKey),
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey
         },
         body: JSON.stringify({
           contents: [
@@ -85,12 +89,11 @@ ${transcript}
 
     if (!response.ok) {
       return res.status(response.status).json({
-        error: data?.error?.message || "Gemini AI error"
+        error: data?.error?.message || "Gemini API error"
       });
     }
 
-    const result =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const result = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!result) {
       return res.status(500).json({
