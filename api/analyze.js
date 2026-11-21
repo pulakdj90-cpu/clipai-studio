@@ -1,7 +1,7 @@
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Use POST" });
+    return res.status(405).json({ error: "Use POST method" });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -16,14 +16,14 @@ export default async function handler(req, res) {
 
   if (!transcript || transcript.length < 50) {
     return res.status(400).json({
-      error: "Please paste a longer transcript"
+      error: "Please provide a longer transcript"
     });
   }
 
   const prompt = `
-Analyze this transcript and suggest 5 viral short video clips.
+Analyze this video transcript and suggest 5 viral short video clips.
 
-Return ONLY valid JSON:
+Return ONLY valid JSON in this exact format:
 {
   "clips": [
     {
@@ -37,10 +37,10 @@ Return ONLY valid JSON:
 
 Rules:
 - Suggest 5 clips.
-- Choose funny, emotional, surprising or informative moments.
-- Each clip should be 20 to 60 seconds.
-- Use timestamps if present.
-- Do not invent timestamps if transcript has none.
+- Prefer funny, emotional, surprising or informative moments.
+- Clips should be 20 to 60 seconds long.
+- Use transcript timestamps if available.
+- Do not invent exact timestamps if none are available.
 - Return JSON only.
 
 TRANSCRIPT:
@@ -49,7 +49,7 @@ ${transcript}
 
   try {
     const response = await fetch(
-    https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent  ?key=" + apiKey,
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey,
       {
         method: "POST",
         headers: {
@@ -72,7 +72,7 @@ ${transcript}
 
     if (!response.ok) {
       return res.status(response.status).json({
-        error: data.error?.message || "Gemini API request failed"
+        error: data.error?.message || "Gemini API failed"
       });
     }
 
@@ -80,11 +80,13 @@ ${transcript}
 
     if (!text) {
       return res.status(500).json({
-        error: "Gemini returned an empty response"
+        error: "Gemini returned empty response"
       });
     }
 
-    return res.status(200).json(JSON.parse(text));
+    const result = JSON.parse(text);
+
+    return res.status(200).json(result);
 
   } catch (error) {
     return res.status(500).json({
