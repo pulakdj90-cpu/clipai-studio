@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ClipAI Shorts Maker</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#0b0b12;
+  color:#fff;
+  font-family:Arial,sans-serif;
+}
+header{
+  padding:18px;
+  text-align:center;
+  background:#15111f;
+  border-bottom:1px solid #292434;
+}
+h1{margin:0;color:#c77dff}
+.container{
+  max-width:600px;
+  margin:auto;
+  padding:20px;
+}
+.card{
+  background:#171720;
+  padding:20px;
+  border-radius:18px;
+  border:1px solid #30303c;
+  margin-bottom:20px;
+}
+button{
+  width:100%;
+  padding:15px;
+  border:0;
+  border-radius:12px;
+  background:linear-gradient(90deg,#9333ea,#d45cff);
+  color:white;
+  font-weight:bold;
+  margin-top:12px;
+  font-size:16px;
+}
+input{
+  width:100%;
+  padding:12px;
+  margin-top:10px;
+  background:#252530;
+  border:1px solid #444;
+  border-radius:10px;
+  color:white;
+}
+video{
+  display:block;
+  width:100%;
+  background:#000;
+  border-radius:12px;
+}
+.preview{
+  width:270px;
+  max-width:100%;
+  aspect-ratio:9/16;
+  margin:auto;
+  background:#000;
+  overflow:hidden;
+  border-radius:18px;
+}
+.preview video{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+label{
+  display:block;
+  margin-top:15px;
+}
+#status{
+  margin-top:15px;
+  color:#d38cff;
+  word-break:break-word;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>✨ ClipAI Shorts Maker</h1>
+<p>Create YouTube Shorts easily</p>
+</header>
+
+<div class="container">
+
+<div class="card">
+<h2>1. Upload Video</h2>
+<input type="file" id="videoFile" accept="video/*">
+</div>
+
+<div class="card">
+<h2>2. Shorts Preview (9:16)</h2>
+<div class="preview">
+<video id="video" controls playsinline></video>
+</div>
+</div>
+
+<div class="card">
+<h2>3. Select Clip</h2>
+
+<label>Start Time (seconds)</label>
+<input type="number" id="start" value="0" min="0">
+
+<label>End Time (seconds)</label>
+<input type="number" id="end" value="30" min="1">
+
+<button onclick="previewClip()">Preview Clip</button>
+</div>
+
+<div class="card">
+<h2>4. Export Short</h2>
+<button onclick="exportClip()">Export Video</button>
+<div id="status"></div>
+</div>
+
+</div>
+
+<script>
+const video = document.getElementById("video");
+const fileInput = document.getElementById("videoFile");
+const status = document.getElementById("status");
+
+let videoURL = null;
+
+fileInput.addEventListener("change", function(){
+  const file = this.files[0];
+  if(!file) return;
+
+  if(videoURL) URL.revokeObjectURL(videoURL);
+
+  videoURL = URL.createObjectURL(file);
+  video.src = videoURL;
+
+  video.onloadedmetadata = () => {
+    document.getElementById("end").value =
+      Math.min(30, Math.floor(video.duration));
+
+    status.innerText = "Video loaded successfully!";
+  };
+});
+
+function previewClip(){
+  const start = Number(document.getElementById("start").value);
+
+  if(!video.src){
+    alert("Please upload a video first");
+    return;
+  }
+
+  video.currentTime = start;
+  video.play();
+}
+
+async function exportClip(){
+
+  if(!video.src){
+    alert("Please upload a video first");
+    return;
+  }
+
+  const start = Number(document.getElementById("start").value);
+  const end = Number(document.getElementById("end").value);
+
+  if(end <= start){
+    alert("End time must be greater than start time");
+    return;
+  }
+
+  status.innerText = "Preparing export...";
+
+  try{
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 720;
+    canvas.height = 1280;
+
+    const ctx = canvas.getContext("2d");
+    const stream = canvas.captureStream(30);
+
+    const recorder = new MediaRecorder(stream,{
+      mimeType:"video/webm"
+    });
+
+    const chunks = [];
+
+    recorder.ondataavailable = e => {
+      if(e.data.size > 0) chunks.push(e.data);
+    };
+
+    recorder.onstop = () => {
+
+      const blob = new Blob(chunks,{
+        type:"video/webm"
+      });
+
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "clipai-short.webm";
+      link.click();
+
+      status.innerText = "Export completed!";
+    };
+
+    video.pause();
+    video.currentTime = start;
+
+    await new Promise(resolve=>{
+      video.onseeked = resolve;
+    });
+
+    recorder.start();
+
+    video.play();
+
+    function draw(){
+
+      if(video.paused || video.ended) return;
+
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+
+      const targetRatio = 9/16;
+      const videoRatio = vw/vh;
+
+      let sx=0, sy=0, sw=vw, sh=vh;
+
+      if(videoRatio > targetRatio){
+        sw = vh*targetRatio;
+        sx = (vw-sw)/2;
+      }else{
+        sh = vw/targetRatio;
+        sy = (vh-sh)/2;
+      }
+
+      ctx.drawImage(
+        video,
+        sx,sy,sw,sh,
+        0,0,canvas.width,canvas.height
+      );
+
+      if(video.currentTime >= end){
+        video.pause();
+        recorder.stop();
+        return;
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    requestAnimationFrame(draw);
+
+    status.innerText = "Recording your Short...";
+
+  }catch(err){
+    status.innerText = "Export error: " + err.message;
+  }
+}
+</script>
+
+</body>
+</html>
