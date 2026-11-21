@@ -1,0 +1,332 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClipAI Auto Captions</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#0b1020;
+  color:white;
+  font-family:Arial,sans-serif;
+  padding:16px;
+}
+.container{max-width:650px;margin:auto}
+h1{text-align:center;color:#7c8cff}
+.card{
+  background:#171e32;
+  padding:18px;
+  border-radius:18px;
+  margin-top:16px;
+}
+label{display:block;margin-top:14px;color:#bfcaff}
+input,select,button,textarea{
+  width:100%;
+  padding:13px;
+  margin-top:8px;
+  border-radius:10px;
+  border:0;
+  font-size:16px;
+}
+button{
+  background:#6578ff;
+  color:white;
+  font-weight:bold;
+  margin-top:12px;
+}
+.preview{
+  position:relative;
+  width:100%;
+  max-width:360px;
+  margin:15px auto;
+  aspect-ratio:9/16;
+  background:#000;
+  overflow:hidden;
+  border-radius:15px;
+}
+video{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.caption{
+  position:absolute;
+  bottom:12%;
+  width:100%;
+  text-align:center;
+  font-weight:bold;
+  color:white;
+  text-shadow:2px 2px 4px black;
+  padding:8px;
+  pointer-events:none;
+}
+.status{text-align:center;color:#aebcff;margin:15px}
+.captionItem{
+  background:#222c45;
+  padding:12px;
+  border-radius:12px;
+  margin-top:10px;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>🎬 ClipAI Captions</h1>
+
+<div class="card">
+
+<label>Upload Video</label>
+<input type="file" id="file" accept="video/*">
+
+<div class="preview">
+  <video id="video" controls playsinline></video>
+  <div class="caption" id="caption"></div>
+</div>
+
+<label>Caption Text</label>
+<textarea id="text" placeholder="Type your caption here"></textarea>
+
+<label>Caption Start (seconds)</label>
+<input type="number" id="capStart" value="0" min="0">
+
+<label>Caption End (seconds)</label>
+<input type="number" id="capEnd" value="3" min="1">
+
+<button onclick="addCaption()">➕ Add Caption</button>
+
+<div id="captionList"></div>
+
+<label>Caption Color</label>
+<select id="color">
+<option value="white">White</option>
+<option value="yellow">Yellow</option>
+<option value="#00ffff">Cyan</option>
+<option value="#00ff00">Green</option>
+</select>
+
+<label>Caption Size</label>
+<input type="range" id="size" min="18" max="50" value="30">
+
+<button onclick="previewVideo()">▶ Preview</button>
+<button onclick="exportVideo()">📥 Export Shorts</button>
+
+<div class="status" id="status">Upload a video to begin</div>
+
+</div>
+</div>
+
+<script>
+const file=document.getElementById("file");
+const video=document.getElementById("video");
+const caption=document.getElementById("caption");
+const textBox=document.getElementById("text");
+const capStart=document.getElementById("capStart");
+const capEnd=document.getElementById("capEnd");
+const captionList=document.getElementById("captionList");
+const statusBox=document.getElementById("status");
+const colorBox=document.getElementById("color");
+const sizeBox=document.getElementById("size");
+
+let captions=[];
+let videoURL="";
+
+file.onchange=()=>{
+  if(!file.files[0]) return;
+  videoURL=URL.createObjectURL(file.files[0]);
+  video.src=videoURL;
+  captions=[];
+  renderList();
+  statusBox.textContent="Video loaded successfully";
+};
+
+function addCaption(){
+  const text=textBox.value.trim();
+  const start=Number(capStart.value);
+  const end=Number(capEnd.value);
+
+  if(!text){
+    alert("Please enter caption text");
+    return;
+  }
+
+  if(end<=start){
+    alert("End time must be greater than start time");
+    return;
+  }
+
+  captions.push({text,start,end});
+  captions.sort((a,b)=>a.start-b.start);
+
+  textBox.value="";
+  renderList();
+  statusBox.textContent="Caption added!";
+}
+
+function renderList(){
+  captionList.innerHTML="";
+
+  captions.forEach((c,i)=>{
+    const div=document.createElement("div");
+    div.className="captionItem";
+    div.innerHTML=
+      "<b>"+(i+1)+".</b> "+escapeHTML(c.text)+
+      "<br>"+c.start+"s - "+c.end+"s"+
+      "<button onclick='removeCaption("+i+")'>❌ Remove</button>";
+    captionList.appendChild(div);
+  });
+}
+
+function escapeHTML(s){
+  return s.replace(/[&<>"']/g,m=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",
+    '"':"&quot;","'":"&#39;"
+  }[m]));
+}
+
+function removeCaption(i){
+  captions.splice(i,1);
+  renderList();
+}
+
+function updateCaption(){
+  const t=video.currentTime;
+  const current=captions.find(c=>t>=c.start&&t<=c.end);
+
+  caption.textContent=current?current.text:"";
+  caption.style.color=colorBox.value;
+  caption.style.fontSize=sizeBox.value+"px";
+}
+
+video.addEventListener("timeupdate",updateCaption);
+colorBox.onchange=updateCaption;
+sizeBox.oninput=updateCaption;
+
+function previewVideo(){
+  if(!video.src){
+    alert("Upload a video first");
+    return;
+  }
+  video.play();
+}
+
+async function exportVideo(){
+  if(!video.src){
+    alert("Upload a video first");
+    return;
+  }
+
+  if(captions.length===0){
+    alert("Add at least one caption first");
+    return;
+  }
+
+  try{
+    const canvas=document.createElement("canvas");
+    canvas.width=720;
+    canvas.height=1280;
+    const ctx=canvas.getContext("2d");
+
+    const stream=canvas.captureStream(30);
+
+    let audioStream=null;
+    try{
+      audioStream=video.captureStream();
+      audioStream.getAudioTracks().forEach(t=>stream.addTrack(t));
+    }catch(e){}
+
+    const mime=
+      MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      ?"video/webm;codecs=vp9"
+      :"video/webm";
+
+    const recorder=new MediaRecorder(stream,{mimeType:mime});
+    const chunks=[];
+
+    recorder.ondataavailable=e=>{
+      if(e.data.size>0)chunks.push(e.data);
+    };
+
+    recorder.onstop=()=>{
+      const blob=new Blob(chunks,{type:"video/webm"});
+      const link=document.createElement("a");
+      link.href=URL.createObjectURL(blob);
+      link.download="clipai-captions.webm";
+      link.click();
+      statusBox.textContent="Export complete! Download started.";
+    };
+
+    const start=Number(capStart.value)||0;
+    const end=Number(capEnd.value)||video.duration;
+
+    video.pause();
+    video.currentTime=start;
+
+    await new Promise(resolve=>{
+      video.onseeked=resolve;
+    });
+
+    recorder.start();
+    video.play();
+
+    function draw(){
+      if(video.paused||video.ended)return;
+
+      ctx.fillStyle="#000";
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      const vw=video.videoWidth;
+      const vh=video.videoHeight;
+
+      const scale=Math.max(canvas.width/vw,canvas.height/vh);
+      const w=vw*scale;
+      const h=vh*scale;
+
+      ctx.drawImage(video,(canvas.width-w)/2,(canvas.height-h)/2,w,h);
+
+      const current=captions.find(c=>
+        video.currentTime>=c.start&&video.currentTime<=c.end
+      );
+
+      if(current){
+        const fontSize=Number(sizeBox.value);
+        ctx.font="bold "+fontSize*2+"px Arial";
+        ctx.textAlign="center";
+        ctx.textBaseline="middle";
+
+        ctx.lineWidth=6;
+        ctx.strokeStyle="black";
+        ctx.strokeText(current.text,canvas.width/2,canvas.height*0.82,canvas.width-60);
+
+        ctx.fillStyle=colorBox.value;
+        ctx.fillText(current.text,canvas.width/2,canvas.height*0.82,canvas.width-60);
+      }
+
+      if(video.currentTime>=end){
+        video.pause();
+        recorder.stop();
+        return;
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    video.onended=()=>{
+      if(recorder.state==="recording")recorder.stop();
+    };
+
+    requestAnimationFrame(draw);
+    statusBox.textContent="Exporting video... Please wait";
+
+  }catch(err){
+    statusBox.textContent="Export failed: "+err.message;
+  }
+}
+</script>
+</body>
+</html>
