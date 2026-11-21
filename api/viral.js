@@ -32,6 +32,8 @@ Return valid JSON only in this format:
   "clips": [
     {
       "title": "Catchy clip title",
+      "startTime": 0,
+      "endTime": 30,
       "hook": "Strong opening hook",
       "startQuote": "Exact transcript beginning",
       "endQuote": "Exact transcript ending",
