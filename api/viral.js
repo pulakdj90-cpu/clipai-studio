@@ -26,6 +26,15 @@ You are an expert YouTube Shorts editor.
 
 Analyze this transcript and find the 5 most engaging moments.
 
+For every clip:
+- Give a realistic startTime and endTime in seconds.
+- startTime must be greater than 0 whenever possible.
+- endTime must be greater than startTime.
+- Each clip should be 30 to 60 seconds long.
+- Never leave timestamps blank.
+- Do not use the same timestamps for all clips.
+- Find moments based on the actual transcript.
+
 Return valid JSON only in this format:
 
 {
