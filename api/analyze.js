@@ -7,7 +7,9 @@ export default async function handler(req, res) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: "Gemini API key missing in Vercel" });
+    return res.status(500).json({
+      error: "GEMINI_API_KEY missing in Vercel settings"
+    });
   }
 
   const { transcript } = req.body || {};
@@ -19,9 +21,9 @@ export default async function handler(req, res) {
   }
 
   const prompt = `
-Analyze this video transcript and find the 5 best viral short clips.
+Analyze this transcript and suggest 5 viral short video clips.
 
-Return ONLY valid JSON in this format:
+Return ONLY valid JSON:
 {
   "clips": [
     {
@@ -35,61 +37,58 @@ Return ONLY valid JSON in this format:
 
 Rules:
 - Suggest 5 clips.
-- Clips should be engaging, funny, surprising, emotional, or informative.
+- Choose funny, emotional, surprising or informative moments.
 - Each clip should be 20 to 60 seconds.
-- Use timestamps if present in the transcript.
-- Do not invent timestamps if the transcript has none.
+- Use timestamps if present.
+- Do not invent timestamps if transcript has none.
 - Return JSON only.
 
 TRANSCRIPT:
 ${transcript}
 `;
 
-  const models = [
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash"
-  ];
-
-  for (const model of models) {
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [{ text: prompt }]
-              }
-            ],
-            generationConfig: {
-              responseMimeType: "application/json"
+  try {
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }]
             }
-          })
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        continue;
+          ],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
       }
+    );
 
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const data = await response.json();
 
-      if (text) {
-        return res.status(200).json(JSON.parse(text));
-      }
-    } catch (error) {
-      continue;
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: data.error?.message || "Gemini API request failed"
+      });
     }
-  }
 
-  return res.status(500).json({
-    error: "Gemini AI unavailable. Check API key, quota and model access."
-  });
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      return res.status(500).json({
+        error: "Gemini returned an empty response"
+      });
+    }
+
+    return res.status(200).json(JSON.parse(text));
+
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message || "Server error"
+    });
+  }
 }
