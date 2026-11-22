@@ -1,50 +1,488 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ClipAI Studio</title>
+
 <style>
-*{box-sizing:border-box}body{margin:0;background:#0b0b12;color:#f5f4fa;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background-image:radial-gradient(circle at 80% 15%,#27143d 0,transparent 36%)}header{padding:22px 24px;border-bottom:1px solid #292632;display:flex;align-items:center;justify-content:space-between}.brand{font-size:24px;font-weight:800;letter-spacing:-.5px}.brand span{color:#c78bff}.tag{border:1px solid #60447c;color:#c9a6ee;border-radius:30px;padding:8px 12px;font-size:12px}main{max-width:850px;margin:auto;padding:32px 18px 60px}h1{text-align:center;font-size:clamp(30px,6vw,48px);line-height:1.12;margin:12px 0}h1 span{color:#ca87ff}.lead{text-align:center;color:#a8a6b7;font-size:17px;line-height:1.5;margin:14px auto 30px;max-width:650px}.panel{background:#171720;border:1px solid #302d3a;border-radius:24px;padding:22px;margin:18px 0;box-shadow:0 10px 35px #0002}.section-title{font-size:21px;font-weight:750;margin-bottom:16px}.field-label{display:block;font-size:14px;color:#c7c5d1;margin:16px 0 8px}input,textarea{width:100%;background:#101016;color:#fff;border:1px solid #393642;border-radius:12px;padding:14px;font:inherit;outline:none}input:focus,textarea:focus{border-color:#9c65ce}textarea{min-height:160px;resize:vertical}small{color:#8e8c9d;display:block;line-height:1.5;margin-top:8px}.btn{width:100%;border:0;border-radius:12px;padding:15px 18px;font-weight:750;font-size:16px;cursor:pointer;background:linear-gradient(90deg,#9a58d3,#d183ff);color:#160c20;margin-top:18px}.btn:disabled{opacity:.55;cursor:not-allowed}.result{margin-top:20px}.clip{border:1px solid #3b3545;border-radius:14px;padding:16px;margin:12px 0;background:#111118}.clip h3{margin:0 0 8px;font-size:18px}.time{color:#d19aff;font-weight:700}.reason{color:#c4c1ce;line-height:1.5;margin:9px 0}.error{color:#ff9a9a}.success{color:#a9e9bd}.footer{text-align:center;color:#777584;font-size:12px;margin-top:25px}
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0b0b12;
+  color: #f5f4fa;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background-image: radial-gradient(circle at 80% 15%, #27143d 0, transparent 36%);
+}
+
+header {
+  padding: 22px 24px;
+  border-bottom: 1px solid #292632;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.brand {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+}
+
+.brand span {
+  color: #c78bff;
+}
+
+.tag {
+  border: 1px solid #60447c;
+  color: #c9a6ee;
+  border-radius: 30px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+main {
+  max-width: 850px;
+  margin: auto;
+  padding: 32px 18px 60px;
+}
+
+h1 {
+  text-align: center;
+  font-size: clamp(30px, 6vw, 48px);
+  line-height: 1.12;
+  margin: 12px 0;
+}
+
+h1 span {
+  color: #ca87ff;
+}
+
+.lead {
+  text-align: center;
+  color: #a8a6b7;
+  font-size: 17px;
+  line-height: 1.5;
+  margin: 14px auto 30px;
+  max-width: 650px;
+}
+
+.panel {
+  background: #171720;
+  border: 1px solid #302d3a;
+  border-radius: 24px;
+  padding: 22px;
+  margin: 18px 0;
+  box-shadow: 0 10px 35px #0002;
+}
+
+.section-title {
+  font-size: 21px;
+  font-weight: 750;
+  margin-bottom: 16px;
+}
+
+.field-label {
+  display: block;
+  font-size: 14px;
+  color: #c7c5d1;
+  margin: 16px 0 8px;
+}
+
+input, textarea {
+  width: 100%;
+  background: #101016;
+  color: #fff;
+  border: 1px solid #393642;
+  border-radius: 12px;
+  padding: 14px;
+  font: inherit;
+  outline: none;
+}
+
+input:focus, textarea:focus {
+  border-color: #9c65ce;
+}
+
+textarea {
+  min-height: 160px;
+  resize: vertical;
+}
+
+small {
+  color: #8e8c9d;
+  display: block;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+
+.btn {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  padding: 15px 18px;
+  font-weight: 750;
+  font-size: 16px;
+  cursor: pointer;
+  background: linear-gradient(90deg, #9a58d3, #d183ff);
+  color: #160c20;
+  margin-top: 18px;
+}
+
+.btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.result {
+  margin-top: 20px;
+}
+
+.clip {
+  border: 1px solid #3b3545;
+  border-radius: 14px;
+  padding: 16px;
+  margin: 12px 0;
+  background: #111118;
+}
+
+.clip h3 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.time {
+  color: #d19aff;
+  font-weight: 700;
+  font-size: 15px;
+  margin: 8px 0;
+}
+
+.reason {
+  color: #c4c1ce;
+  line-height: 1.5;
+  margin: 9px 0;
+}
+
+.score {
+  display: inline-block;
+  color: #a9e9bd;
+  background: #173023;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 13px;
+  margin-top: 5px;
+}
+
+.quote {
+  color: #aaa6b8;
+  border-left: 3px solid #a967db;
+  padding-left: 10px;
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+.error {
+  color: #ff9a9a;
+}
+
+.success {
+  color: #a9e9bd;
+}
+
+.footer {
+  text-align: center;
+  color: #777584;
+  font-size: 12px;
+  margin-top: 25px;
+}
+
+.extra-section {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid #393642;
+  border-radius: 14px;
+  background: #111118;
+}
+
+.extra-section h3 {
+  color: #d19aff;
+}
+
+.extra-section li {
+  margin: 8px 0;
+  color: #c4c1ce;
+}
+
+@media (max-width: 600px) {
+  header {
+    padding: 16px;
+  }
+
+  .brand {
+    font-size: 20px;
+  }
+
+  main {
+    padding: 22px 12px 40px;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+}
 </style>
 </head>
+
 <body>
-<header><div class="brand">✦ ClipAI <span>Studio</span></div><div class="tag">YOUTUBE AI FINDER</div></header>
+
+<header>
+  <div class="brand">✦ ClipAI <span>Studio</span></div>
+  <div class="tag">YOUTUBE AI FINDER</div>
+</header>
+
 <main>
+
 <h1>Find the <span>viral moments</span></h1>
-<p class="lead">Paste a YouTube link and its transcript. AI will suggest engaging moments with timestamps, titles, and reasons.</p>
+
+<p class="lead">
+Paste a YouTube link and its transcript.
+AI will suggest engaging moments with timestamps, titles, and reasons.
+</p>
+
 <div class="panel">
-<div class="section-title">① YouTube video</div>
-<label class="field-label" for="youtube">YouTube URL</label>
-<input id="youtube" type="url" placeholder="https://www.youtube.com/watch?v=..." />
-<small>Paste the video link. This version uses the transcript text below for AI analysis; it does not download the YouTube video.</small>
-<label class="field-label" for="transcript">Video transcript</label>
-<textarea id="transcript" placeholder="Paste the transcript here, including timestamps if available. Example: [00:01:20] Today I learned..."></textarea>
-<small>Tip: On YouTube, open the video description/menu and look for “Show transcript” if available, then copy and paste it here.</small>
-<button id="analyze" class="btn" onclick="analyzeClips()">✨ Find Viral Clips</button>
-<div id="status" class="result"></div>
+
+  <div class="section-title">① YouTube video</div>
+
+  <label class="field-label" for="youtube">YouTube URL</label>
+
+  <input
+    id="youtube"
+    type="url"
+    placeholder="https://www.youtube.com/watch?v=..."
+  />
+
+  <small>
+    This version analyzes the transcript you paste below.
+    It does not download the YouTube video.
+  </small>
+
+  <label class="field-label" for="transcript">Video transcript</label>
+
+  <textarea
+    id="transcript"
+    placeholder="Paste the transcript here, including timestamps if available. Example: [00:01:20] Today I learned..."
+  ></textarea>
+
+  <small>
+    Tip: On YouTube, open the video menu and select Show transcript if available.
+    Copy the transcript and paste it here.
+  </small>
+
+  <button id="analyze" class="btn" onclick="analyzeClips()">
+    ✨ Find Viral Clips
+  </button>
+
+  <div id="status" class="result"></div>
+
 </div>
-<div class="footer">ClipAI Studio · AI clip suggestions only — video cutting/export is not enabled yet.</div>
+
+<div class="footer">
+  ClipAI Studio · AI clip suggestions
+</div>
+
 </main>
+
 <script>
-async function analyzeClips(){
- const url=document.getElementById('youtube').value.trim();
- const transcript=document.getElementById('transcript').value.trim();
- const status=document.getElementById('status');
- const button=document.getElementById('analyze');
- if(!url){status.innerHTML='<p class="error">Please paste a YouTube URL first.</p>';return;}
- if(!/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(url)){status.innerHTML='<p class="error">Please enter a valid YouTube link.</p>';return;}
- if(transcript.length<50){status.innerHTML='<p class="error">Please paste a transcript with at least 50 characters.</p>';return;}
- button.disabled=true;button.textContent='Analyzing transcript…';status.innerHTML='<p>🤖 AI is looking for interesting moments…</p>';
- try{
-  const response=await fetch('/api/viral',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({transcript})});
-  const data=await response.json();
-  if(!response.ok)throw new Error(data.error||'Analysis failed');
-  if(!Array.isArray(data.clips)||!data.clips.length){status.innerHTML='<p>No clips returned. Try a longer transcript.</p>';return;}
-  status.innerHTML='<h2>Suggested clips</h2>'+data.clips.map((clip,i)=>`<div class="clip"><h3>${i+1}. ${escapeHtml(clip.title||'Clip suggestion')}</h3><div class="time">${escapeHtml(clip.start||'')} – ${escapeHtml(clip.end||'')}</div><p class="reason">${escapeHtml(clip.reason||'')}</p></div>`).join('');
- }catch(e){status.innerHTML='<p class="error">Error: '+escapeHtml(e.message)+'<br>Check deployment and API key settings.</p>';}finally{button.disabled=false;button.textContent='✨ Find Viral Clips';}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[c]));
 }
-function escapeHtml(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+// Seconds ko MM:SS ya HH:MM:SS mein convert karo
+function formatTime(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+
+  if (hours > 0) {
+    return (
+      String(hours).padStart(2, "0") + ":" +
+      String(minutes).padStart(2, "0") + ":" +
+      String(secs).padStart(2, "0")
+    );
+  }
+
+  return (
+    String(minutes).padStart(2, "0") + ":" +
+    String(secs).padStart(2, "0")
+  );
+}
+
+async function analyzeClips() {
+
+  const url = document.getElementById("youtube").value.trim();
+  const transcript = document.getElementById("transcript").value.trim();
+  const status = document.getElementById("status");
+  const button = document.getElementById("analyze");
+
+  if (!url) {
+    status.innerHTML = '<p class="error">Please paste a YouTube URL first.</p>';
+    return;
+  }
+
+  if (!/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(url)) {
+    status.innerHTML = '<p class="error">Please enter a valid YouTube link.</p>';
+    return;
+  }
+
+  if (transcript.length < 50) {
+    status.innerHTML = '<p class="error">Please paste a transcript with at least 50 characters.</p>';
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Analyzing transcript...";
+  status.innerHTML = "<p>🤖 AI is finding viral moments...</p>";
+
+  try {
+
+    const response = await fetch("/api/viral", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        transcript: transcript,
+        language: "Hindi"
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Analysis failed");
+    }
+
+    if (!Array.isArray(data.clips) || data.clips.length === 0) {
+      status.innerHTML = '<p>No clips returned. Try a longer transcript.</p>';
+      return;
+    }
+
+    let html = "<h2>Suggested clips</h2>";
+
+    data.clips.forEach((clip, index) => {
+
+      // New API fields: startTime / endTime
+      const start = Number(clip.startTime);
+      const end = Number(clip.endTime);
+
+      const validTimes =
+        Number.isFinite(start) &&
+        Number.isFinite(end) &&
+        start >= 0 &&
+        end > start;
+
+      const timestampDisplay = validTimes
+        ? formatTime(start) + " – " + formatTime(end)
+        : "Timestamp unavailable";
+
+      const durationDisplay = validTimes
+        ? Math.round(end - start) + " seconds"
+        : "";
+
+      html += `
+        <div class="clip">
+
+          <h3>${index + 1}. ${escapeHtml(clip.title || "Clip suggestion")}</h3>
+
+          <div class="time">
+            ⏱ ${escapeHtml(timestampDisplay)}
+          </div>
+
+          ${durationDisplay
+            ? `<small>Clip duration: ${escapeHtml(durationDisplay)}</small>`
+            : ""}
+
+          ${clip.viralScore !== undefined
+            ? `<div class="score">🔥 Viral Score: ${escapeHtml(clip.viralScore)}/100</div>`
+            : ""}
+
+          ${clip.hook
+            ? `<p class="reason"><b>Hook:</b> ${escapeHtml(clip.hook)}</p>`
+            : ""}
+
+          ${clip.reason
+            ? `<p class="reason">${escapeHtml(clip.reason)}</p>`
+            : ""}
+
+          ${clip.startQuote
+            ? `<div class="quote">Start: ${escapeHtml(clip.startQuote)}</div>`
+            : ""}
+
+          ${clip.endQuote
+            ? `<div class="quote">End: ${escapeHtml(clip.endQuote)}</div>`
+            : ""}
+
+        </div>
+      `;
+    });
+
+    // AI-generated YouTube titles
+    if (Array.isArray(data.titles) && data.titles.length) {
+      html += `
+        <div class="extra-section">
+          <h3>🎯 Suggested YouTube Titles</h3>
+          <ol>
+            ${data.titles.map(title =>
+              `<li>${escapeHtml(title)}</li>`
+            ).join("")}
+          </ol>
+        </div>
+      `;
+    }
+
+    // AI hashtags
+    if (Array.isArray(data.hashtags) && data.hashtags.length) {
+      html += `
+        <div class="extra-section">
+          <h3>🏷️ Hashtags</h3>
+          <p>${data.hashtags.map(tag => escapeHtml(tag)).join(" ")}</p>
+        </div>
+      `;
+    }
+
+    status.innerHTML = html;
+
+  } catch (error) {
+
+    status.innerHTML =
+      '<p class="error">Error: ' +
+      escapeHtml(error.message) +
+      '<br>Please check the API deployment and try again.</p>';
+
+  } finally {
+
+    button.disabled = false;
+    button.textContent = "✨ Find Viral Clips";
+
+  }
+}
+
 </script>
+
 </body>
 </html>
