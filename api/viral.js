@@ -1,4 +1,3 @@
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Use POST method" });
@@ -21,92 +20,90 @@ export default async function handler(req, res) {
       });
     }
 
-    // Transcript se available timestamps detect karo
+    // Transcript ke timestamps detect karna
     function parseTimestamp(text) {
-      const matches = [...text.matchAll(
-        /(?:\[|\()?\b(\d{1,2}):(\d{2})(?::(\d{2}))?\b(?:\]|\))?/g
-      )];
+      const regex = /(?:\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]|\b(\d{1,2}):(\d{2}):(\d{2})\b|\b(\d{1,2}):(\d{2})\b)/g;
+      let match;
+      const times = [];
 
-      let maxTime = 0;
+      while ((match = regex.exec(text)) !== null) {
+        let seconds = 0;
 
-      for (const match of matches) {
-        let seconds;
-
-        if (match[3] !== undefined) {
-          seconds =
-            Number(match[1]) * 3600 +
-            Number(match[2]) * 60 +
-            Number(match[3]);
+        if (match[1] !== undefined) {
+          seconds = match[3] !== undefined
+            ? Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3])
+            : Number(match[1]) * 60 + Number(match[2]);
+        } else if (match[4] !== undefined) {
+          seconds = Number(match[4]) * 3600 + Number(match[5]) * 60 + Number(match[6]);
         } else {
-          seconds =
-            Number(match[1]) * 60 +
-            Number(match[2]);
+          seconds = Number(match[7]) * 60 + Number(match[8]);
         }
 
-        if (seconds > maxTime) maxTime = seconds;
+        times.push(seconds);
       }
 
-      return maxTime;
+      return [...new Set(times)].sort((a, b) => a - b);
     }
 
-    const transcriptDuration = parseTimestamp(transcript);
+    const transcriptTimes = parseTimestamp(transcript);
+    const hasRealTimestamps = transcriptTimes.length >= 2;
+    const transcriptDuration = transcriptTimes.length
+      ? Math.max(...transcriptTimes)
+      : null;
 
     const prompt = `
 You are an expert YouTube Shorts viral clip editor.
 
-Analyze the transcript and find exactly 5 engaging moments.
+Analyze the transcript and select exactly 5 genuinely engaging moments.
 
 LANGUAGE:
 ${language}
 
-TIMESTAMP RULES:
-1. Every clip MUST have numeric startTime and endTime in seconds.
-2. Never return null, empty, missing, or identical timestamps.
-3. startTime must be at least 0.
-4. endTime must be greater than startTime.
-5. Clips should ideally be 30 to 60 seconds.
-6. Do not create clips outside the transcript duration.
-7. Use actual transcript timestamps whenever available.
-8. If transcript timestamps are unavailable, estimate timings using transcript position and length.
-9. Every clip must have a different time range.
-10. Never use 0-30 for every clip.
-11. Do not invent exact transcript quotes.
-12. Prefer funny, surprising, emotional, controversial, informative, or strong-hook moments.
-13. If the transcript is short, clips may be shorter than 30 seconds.
+IMPORTANT TIMESTAMP RULES:
+- If transcript contains timestamps, use ONLY those timestamp positions as timing anchors.
+- Never invent timestamps when real transcript timestamps are available.
+- Each clip must begin near its actual interesting sentence.
+- End near the end of that moment.
+- Clips must not overlap unnecessarily.
+- Each clip should ideally be 30-60 seconds.
+- If the transcript has no timestamps, you may estimate timing, but estimates MUST NOT be presented as exact.
+- Do not give every clip the same start or end time.
+- Do not create fake quotes.
+- startTime and endTime must be numeric seconds.
+- endTime must always be greater than startTime.
 
-TRANSCRIPT TIMESTAMP INFORMATION:
-Maximum timestamp detected: ${transcriptDuration} seconds.
-${transcriptDuration > 0
-  ? "Use the detected transcript timestamps as your timing reference."
-  : "Transcript has no reliable timestamps. Estimate clip timings from transcript position and clearly treat them as estimates."}
+TRANSCRIPT HAS TIMESTAMPS: ${hasRealTimestamps}
+AVAILABLE TIMESTAMPS (seconds):
+${transcriptTimes.join(", ") || "NONE"}
 
-RETURN JSON ONLY:
+TRANSCRIPT DURATION (seconds):
+${transcriptDuration ?? "UNKNOWN"}
+
+Find clips based on:
+1. Strong hooks
+2. Surprising or emotional moments
+3. Funny or relatable moments
+4. Useful or informative moments
+5. High curiosity or shareability
+
+Return JSON only in this format:
 
 {
   "clips": [
     {
       "title": "Catchy clip title",
-      "startTime": 45,
-      "endTime": 85,
-      "hook": "Opening hook",
-      "startQuote": "Quote from transcript",
-      "endQuote": "Quote from transcript",
-      "viralScore": 90,
-      "reason": "Why viewers may watch"
+      "startTime": 30,
+      "endTime": 65,
+      "hook": "Strong opening hook",
+      "startQuote": "Exact transcript beginning",
+      "endQuote": "Exact transcript ending",
+      "viral": 85,
+      "reason": "Why viewers will watch",
+      "confidence": 85
     }
   ],
-  "titles": [
-    "YouTube title 1",
-    "YouTube title 2",
-    "YouTube title 3"
-  ],
-  "hashtags": [
-    "#shorts",
-    "#viral",
-    "#youtube",
-    "#trending",
-    "#video"
-  ]
+  "titles": ["Title 1", "Title 2", "Title 3"],
+  "hashtags": ["#shorts", "#viral", "#youtube"]
 }
 
 TRANSCRIPT:
@@ -114,127 +111,83 @@ ${transcript}
 `;
 
     const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" + apiKey,
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }]
-            }
-          ],
+          contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.2,
-            responseMimeType: "application/json"
+            responseMimeType: "application/json",
+            temperature: 0.2
           }
         })
       }
     );
 
-    const data = await response.json();
-
     if (!response.ok) {
-      return res.status(response.status).json({
-        error: data?.error?.message || "Gemini API error"
-      });
+      const errorText = await response.text();
+      throw new Error("Gemini API error: " + errorText);
     }
 
-    const rawResult =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const result = await response.json();
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    if (!rawResult) {
-      return res.status(500).json({
-        error: "AI returned empty response"
-      });
+    if (!text) {
+      throw new Error("Gemini returned an empty response.");
     }
 
-    // JSON response clean karo
-    const cleanedResult = rawResult
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .trim();
+    const data = JSON.parse(text);
+    const clips = Array.isArray(data.clips) ? data.clips : [];
 
-    const parsed = JSON.parse(cleanedResult);
+    // Clip data validation
+    const validClips = clips
+      .filter(clip =>
+        Number.isFinite(Number(clip.startTime)) &&
+        Number.isFinite(Number(clip.endTime)) &&
+        Number(clip.endTime) > Number(clip.startTime)
+      )
+      .map(clip => {
+        let start = Math.max(0, Number(clip.startTime));
+        let end = Math.max(start + 1, Number(clip.endTime));
 
-    if (!Array.isArray(parsed.clips)) {
-      return res.status(500).json({
-        error: "AI response format is invalid"
-      });
-    }
-
-    // Timestamp validation aur correction
-    const clips = parsed.clips.slice(0, 5).map((clip, index) => {
-      let start = Number(clip.startTime);
-      let end = Number(clip.endTime);
-
-      const invalidStart =
-        !Number.isFinite(start) || start < 0;
-
-      const invalidEnd =
-        !Number.isFinite(end) || end <= start;
-
-      // Missing timestamp ke liye estimated fallback
-      if (invalidStart || invalidEnd) {
-        const fallbackStart = index * 40;
-
-        start = fallbackStart;
-        end = fallbackStart + 30;
-      }
-
-      // Duration ko 30-60 sec range mein adjust karo
-      let duration = end - start;
-
-      if (duration > 60) {
-        end = start + 60;
-      }
-
-      if (duration < 30) {
-        end = start + 30;
-      }
-
-      // Transcript ke known duration se bahar na jane do
-      if (transcriptDuration > 0) {
-        if (start >= transcriptDuration) {
-          start = Math.max(0, transcriptDuration - 30);
+        // Real timestamp transcript ke duration se bahar nahi jane dena
+        if (transcriptDuration !== null) {
+          start = Math.min(start, transcriptDuration);
+          end = Math.min(end, transcriptDuration);
         }
 
-        if (end > transcriptDuration) {
-          end = transcriptDuration;
-        }
-
-        if (end <= start) {
-          start = Math.max(0, end - 15);
-        }
-      }
-
-      return {
-        ...clip,
-        startTime: Math.round(start),
-        endTime: Math.round(end),
-        duration: Math.max(0, Math.round(end - start)),
-        viralScore: Math.min(
-          100,
-          Math.max(0, Number(clip.viralScore) || 70)
-        )
-      };
-    });
+        return {
+          ...clip,
+          startTime: Math.round(start),
+          endTime: Math.round(end),
+          viral: Math.min(100, Math.max(0, Number(clip.viral) || 0)),
+          confidence: Math.min(100, Math.max(0, Number(clip.confidence) || 0)),
+          timingSource: hasRealTimestamps ? "transcript" : "estimated"
+        };
+      })
+      .filter(clip => clip.endTime > clip.startTime);
 
     return res.status(200).json({
-      ...parsed,
-      clips,
-      mode: "gemini-ai",
-      timestampStatus: "validated"
+      success: true,
+      modelUsed: "gemini-3.5-flash-lite",
+      timestampMode: hasRealTimestamps ? "transcript-based" : "estimated",
+      transcriptTimestampCount: transcriptTimes.length,
+      clips: validClips,
+      titles: data.titles || [],
+      hashtags: data.hashtags || [],
+      warning: hasRealTimestamps
+        ? null
+        : "Transcript mein real timestamps nahi hain. Clip timing estimated hai."
     });
 
   } catch (error) {
-    console.error("Viral analysis error:", error);
+    console.error("Viral API Error:", error);
 
     return res.status(500).json({
-      error: error.message || "AI analysis failed"
+      error: error.message || "Viral analysis failed."
     });
   }
 }
