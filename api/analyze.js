@@ -1,7 +1,7 @@
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Use POST method" });
+    return res.status(405).json({ error: "POST method required" });
   }
 
   try {
@@ -13,78 +13,98 @@ export default async function handler(req, res) {
       });
     }
 
-    // Clean transcript
-    const text = transcript.trim();
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    // Split transcript into sentences
-    const sentences = text
-      .replace(/\n+/g, " ")
-      .split(/(?<=[.!?])\s+/)
-      .filter(s => s.trim().length > 10);
-
-    const keywords = [
-      "funny", "amazing", "surprise", "shocking",
-      "secret", "crazy", "fail", "win", "best",
-      "incredible", "unexpected", "emotional",
-      "interesting", "problem", "solution", "wow"
-    ];
-
-    // Score sentences for interesting moments
-    const scored = sentences.map((sentence, index) => {
-      const lower = sentence.toLowerCase();
-      let score = 0;
-
-      keywords.forEach(word => {
-        if (lower.includes(word)) score += 2;
+    if (!apiKey) {
+      return res.status(500).json({
+        error: "GEMINI_API_KEY missing in Vercel settings"
       });
+    }
 
-      if (sentence.length > 40) score += 1;
-      if (sentence.includes("!")) score += 2;
-      if (sentence.includes("?")) score += 1;
+    const prompt = `
+You are an expert YouTube Shorts viral clip finder.
 
-      return { sentence, index, score };
-    });
+Analyze the transcript and identify the 5 most engaging moments
+that could become viral YouTube Shorts.
 
-    // Select best sentences
-    scored.sort((a, b) => b.score - a.score);
+TRANSCRIPT:
+${transcript}
 
-    const selected = scored.slice(0, 5).sort(
-      (a, b) => a.index - b.index
+For each clip provide:
+- Start timestamp
+- End timestamp
+- Catchy title
+- Reason why it can go viral
+- Viral score out of 10
+
+Rules:
+- Select interesting, emotional, surprising or valuable moments.
+- Keep each clip approximately 20 to 60 seconds.
+- Use timestamps from transcript when available.
+- Never invent timestamps.
+- Return ONLY valid JSON.
+
+Format:
+{
+  "clips": [
+    {
+      "start": "00:00",
+      "end": "00:30",
+      "title": "Example title",
+      "reason": "Why this moment is engaging",
+      "score": 9
+    }
+  ]
+}
+`;
+
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" +
+        encodeURIComponent(apiKey),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 3000,
+            responseMimeType: "application/json"
+          }
+        })
+      }
     );
 
-    const clips = selected.map((item, i) => {
-      const startSeconds = i * 30;
-      const endSeconds = startSeconds + 30;
+    const data = await response.json();
 
-      const formatTime = seconds => {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = seconds % 60;
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: data.error?.message || "Gemini API failed"
+      });
+    }
 
-        return [
-          String(h).padStart(2, "0"),
-          String(m).padStart(2, "0"),
-          String(s).padStart(2, "0")
-        ].join(":");
-      };
+    const result =
+      data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-      return {
-        start: formatTime(startSeconds),
-        end: formatTime(endSeconds),
-        title: item.sentence.slice(0, 80),
-        reason: "Selected from transcript using keyword and engagement scoring. Timing is estimated."
-      };
-    });
+    if (!result) {
+      return res.status(500).json({
+        error: "Empty Gemini response"
+      });
+    }
 
-    return res.status(200).json({
-      clips,
-      mode: "fallback",
-      message: "Clip suggestions generated without AI. Times are estimates."
-    });
+    const parsed = JSON.parse(result);
+
+    return res.status(200).json(parsed);
 
   } catch (error) {
     return res.status(500).json({
-      error: "Fallback analysis failed."
+      error: error.message || "Server error"
     });
   }
 }
