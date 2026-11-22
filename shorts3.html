@@ -1,0 +1,292 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClipAI Shorts Maker</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#0b0b12;
+  color:white;
+  font-family:Arial,sans-serif;
+  padding:18px;
+}
+.container{max-width:600px;margin:auto}
+h1{color:#b875ff;text-align:center}
+.card{
+  background:#171721;
+  border:1px solid #333342;
+  border-radius:18px;
+  padding:18px;
+  margin:15px 0;
+}
+input,button{
+  width:100%;
+  padding:14px;
+  margin:8px 0;
+  border-radius:10px;
+  border:none;
+  font-size:16px;
+}
+input{background:#252531;color:white}
+button{
+  background:#9c4dff;
+  color:white;
+  font-weight:bold;
+}
+button:disabled{opacity:.5}
+video{
+  width:100%;
+  max-height:400px;
+  background:black;
+  border-radius:12px;
+}
+canvas{
+  width:100%;
+  max-width:320px;
+  display:block;
+  margin:auto;
+  background:black;
+  border-radius:12px;
+}
+#status{text-align:center;color:#c6a5ff}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>🎬 ClipAI Shorts Maker</h1>
+
+<div class="card">
+<h3>1. Upload Video</h3>
+<input type="file" id="file" accept="video/*">
+<video id="video" controls playsinline></video>
+</div>
+
+<div class="card">
+<h3>2. Select Clip</h3>
+
+<label>Start time (seconds)</label>
+<input type="number" id="start" value="0" min="0">
+
+<label>End time (seconds)</label>
+<input type="number" id="end" value="30" min="1">
+
+<button onclick="previewClip()">▶ Preview Clip</button>
+</div>
+
+<div class="card">
+<h3>3. Vertical Shorts Preview (9:16)</h3>
+<canvas id="canvas" width="720" height="1280"></canvas>
+
+<button id="exportBtn" onclick="exportVideo()">
+🎥 Export Shorts
+</button>
+
+<p id="status">Upload video to start.</p>
+</div>
+
+</div>
+
+<script>
+const fileInput = document.getElementById("file");
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const startInput = document.getElementById("start");
+const endInput = document.getElementById("end");
+const statusText = document.getElementById("status");
+
+let videoURL = null;
+let exporting = false;
+
+fileInput.onchange = () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  if (videoURL) URL.revokeObjectURL(videoURL);
+
+  videoURL = URL.createObjectURL(file);
+  video.src = videoURL;
+
+  video.onloadedmetadata = () => {
+    endInput.value = Math.min(30, video.duration).toFixed(1);
+    endInput.max = video.duration;
+    startInput.max = video.duration;
+
+    statusText.textContent =
+      "Video ready! Set start and end time.";
+  };
+};
+
+function drawVertical() {
+  if (!video.videoWidth || !video.videoHeight) return;
+
+  const targetRatio = 9 / 16;
+  const sourceRatio = video.videoWidth / video.videoHeight;
+
+  let sx, sy, sw, sh;
+
+  if (sourceRatio > targetRatio) {
+    sh = video.videoHeight;
+    sw = sh * targetRatio;
+    sx = (video.videoWidth - sw) / 2;
+    sy = 0;
+  } else {
+    sw = video.videoWidth;
+    sh = sw / targetRatio;
+    sx = 0;
+    sy = (video.videoHeight - sh) / 2;
+  }
+
+  ctx.drawImage(
+    video,
+    sx, sy, sw, sh,
+    0, 0, canvas.width, canvas.height
+  );
+}
+
+function previewClip() {
+  if (!video.src) {
+    alert("Please upload a video first.");
+    return;
+  }
+
+  const start = Number(startInput.value);
+  const end = Number(endInput.value);
+
+  if (end <= start) {
+    alert("End time must be greater than start time.");
+    return;
+  }
+
+  video.currentTime = start;
+  video.play();
+  statusText.textContent = "Playing clip preview...";
+}
+
+video.addEventListener("timeupdate", () => {
+  if (!exporting &&
+      Number(endInput.value) > Number(startInput.value) &&
+      video.currentTime >= Number(endInput.value)) {
+    video.pause();
+  }
+});
+
+function exportVideo() {
+  if (!video.src) {
+    alert("Upload a video first!");
+    return;
+  }
+
+  if (!window.MediaRecorder) {
+    alert("Video export is not supported in this browser.");
+    return;
+  }
+
+  const start = Number(startInput.value);
+  const end = Number(endInput.value);
+
+  if (start < 0 || end <= start || end > video.duration) {
+    alert("Please enter valid start and end times.");
+    return;
+  }
+
+  exporting = true;
+
+  const exportBtn = document.getElementById("exportBtn");
+  exportBtn.disabled = true;
+
+  statusText.textContent = "Preparing video...";
+
+  video.pause();
+  video.currentTime = start;
+
+  video.onseeked = () => {
+    video.onseeked = null;
+
+    drawVertical();
+
+    const canvasStream = canvas.captureStream(30);
+    let tracks = [...canvasStream.getVideoTracks()];
+
+    // Try to capture original video's audio
+    try {
+      const videoStream = video.captureStream();
+      const audioTracks = videoStream.getAudioTracks();
+      tracks = tracks.concat(audioTracks);
+    } catch(e) {
+      console.log("Audio capture unavailable");
+    }
+
+    const finalStream = new MediaStream(tracks);
+
+    let mime = "video/webm";
+
+    if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) {
+      mime = "video/webm;codecs=vp9,opus";
+    } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8")) {
+      mime = "video/webm;codecs=vp8";
+    }
+
+    const recorder = new MediaRecorder(finalStream, {
+      mimeType: mime
+    });
+
+    const chunks = [];
+
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        chunks.push(e.data);
+      }
+    };
+
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, {type:"video/webm"});
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ClipAI-Shorts.webm";
+      a.click();
+
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+      statusText.textContent = "✅ Export complete! Video downloaded.";
+
+      exportBtn.disabled = false;
+      exporting = false;
+      video.pause();
+    };
+
+    recorder.start();
+
+    video.play();
+
+    function renderFrame() {
+      if (!exporting) return;
+
+      drawVertical();
+
+      if (video.currentTime >= end || video.ended) {
+        video.pause();
+        recorder.stop();
+        return;
+      }
+
+      requestAnimationFrame(renderFrame);
+    }
+
+    renderFrame();
+
+    statusText.textContent = "⏳ Exporting Shorts...";
+  };
+}
+</script>
+</body>
+</html>
