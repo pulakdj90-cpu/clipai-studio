@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { transcript } = req.body || {};
+    const { transcript, videoTitle } = req.body || {};
 
     if (!transcript || transcript.trim().length < 20) {
       return res.status(400).json({
@@ -24,83 +24,122 @@ export default async function handler(req, res) {
     const prompt = `
 You are an expert YouTube Shorts viral clip finder.
 
-Analyze the transcript and identify the 5 most engaging moments
-that could become viral YouTube Shorts.
+Analyze this transcript and find the 5 best moments
+for YouTube Shorts.
+
+VIDEO TITLE: ${videoTitle || "Unknown"}
 
 TRANSCRIPT:
 ${transcript}
 
-For each clip provide:
-- Start timestamp
-- End timestamp
-- Catchy title
-- Reason why it can go viral
-- Viral score out of 10
-
-Rules:
-- Select interesting, emotional, surprising or valuable moments.
-- Keep each clip approximately 20 to 60 seconds.
-- Use timestamps from transcript when available.
-- Never invent timestamps.
-- Return ONLY valid JSON.
-
-Format:
+Return ONLY valid JSON in this exact format:
 {
   "clips": [
     {
       "start": "00:00",
       "end": "00:30",
-      "title": "Example title",
-      "reason": "Why this moment is engaging",
-      "score": 9
+      "title": "Catchy Shorts title",
+      "reason": "Why this moment can go viral"
     }
   ]
 }
+
+Rules:
+- Find 5 interesting moments.
+- Choose emotional, funny, surprising or valuable moments.
+- Prefer moments approximately 20-60 seconds long.
+- Use real timestamps from the transcript when available.
+- Never invent exact timestamps if they are not provided.
+- Make titles catchy.
+- Return valid JSON only.
 `;
 
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" +
-        encodeURIComponent(apiKey),
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }]
+    const models = [
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite"
+    ];
+
+    async function callGemini(model) {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: prompt }]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 3000,
+              responseMimeType: "application/json"
             }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 3000,
-            responseMimeType: "application/json"
-          }
-        })
+          })
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const error = new Error(
+          data.error?.message || `Gemini error ${response.status}`
+        );
+        error.status = response.status;
+        throw error;
       }
-    );
 
-    const data = await response.json();
+      const text =
+        data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: data.error?.message || "Gemini API failed"
-      });
+      if (!text) {
+        throw new Error("Gemini returned an empty response");
+      }
+
+      return JSON.parse(text);
     }
 
-    const result =
-      data.candidates?.[0]?.content?.parts?.[0]?.text;
+    let lastError;
 
-    if (!result) {
-      return res.status(500).json({
-        error: "Empty Gemini response"
-      });
+    for (const model of models) {
+      // Retry each model once for temporary server problems
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const result = await callGemini(model);
+          return res.status(200).json(result);
+        } catch (error) {
+          lastError = error;
+
+          // Don't retry invalid key or invalid request
+          if (
+            error.status === 400 ||
+            error.status === 401 ||
+            error.status === 403
+          ) {
+            return res.status(error.status).json({
+              error: error.message
+            });
+          }
+
+          // Retry temporary errors
+          if (attempt === 1) {
+            continue;
+          }
+
+          // After retry, switch to fallback model
+          break;
+        }
+      }
     }
 
-    const parsed = JSON.parse(result);
-
-    return res.status(200).json(parsed);
+    return res.status(503).json({
+      error:
+        "Both Gemini models are busy or unavailable. Please try again shortly.",
+      details: lastError?.message || "Unknown Gemini error"
+    });
 
   } catch (error) {
     return res.status(500).json({
