@@ -1,3 +1,4 @@
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Use POST method" });
@@ -6,7 +7,10 @@ export default async function handler(req, res) {
   try {
     const { transcript, language = "Hindi" } = req.body || {};
 
-    if (!transcript || typeof transcript !== "string" || transcript.trim().length < 30) {
+    if (
+      typeof transcript !== "string" ||
+      transcript.trim().length < 30
+    ) {
       return res.status(400).json({
         error: "Please paste a longer transcript."
       });
@@ -20,23 +24,33 @@ export default async function handler(req, res) {
       });
     }
 
-    // Transcript ke timestamps detect karna
-    function parseTimestamp(text) {
-      const regex = /(?:\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]|\b(\d{1,2}):(\d{2}):(\d{2})\b|\b(\d{1,2}):(\d{2})\b)/g;
-      let match;
+    // Detect timestamps from transcript
+    function extractTimestamps(text) {
+      const regex =
+        /\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]|(\b\d{1,2}:\d{2}:\d{2}\b)/g;
+
       const times = [];
 
-      while ((match = regex.exec(text)) !== null) {
+      for (const match of text.matchAll(regex)) {
         let seconds = 0;
 
         if (match[1] !== undefined) {
-          seconds = match[3] !== undefined
-            ? Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3])
-            : Number(match[1]) * 60 + Number(match[2]);
-        } else if (match[4] !== undefined) {
-          seconds = Number(match[4]) * 3600 + Number(match[5]) * 60 + Number(match[6]);
-        } else {
-          seconds = Number(match[7]) * 60 + Number(match[8]);
+          if (match[3] !== undefined) {
+            seconds =
+              Number(match[1]) * 3600 +
+              Number(match[2]) * 60 +
+              Number(match[3]);
+          } else {
+            seconds =
+              Number(match[1]) * 60 +
+              Number(match[2]);
+          }
+        } else if (match[4]) {
+          const parts = match[4].split(":").map(Number);
+          seconds =
+            parts[0] * 3600 +
+            parts[1] * 60 +
+            parts[2];
         }
 
         times.push(seconds);
@@ -45,61 +59,56 @@ export default async function handler(req, res) {
       return [...new Set(times)].sort((a, b) => a - b);
     }
 
-    const transcriptTimes = parseTimestamp(transcript);
-    const hasRealTimestamps = transcriptTimes.length >= 2;
-    const transcriptDuration = transcriptTimes.length
-      ? Math.max(...transcriptTimes)
+    const timestamps = extractTimestamps(transcript);
+    const hasTimestampedTranscript = timestamps.length >= 2;
+    const transcriptEnd = timestamps.length
+      ? Math.max(...timestamps)
       : null;
 
     const prompt = `
-You are an expert YouTube Shorts viral clip editor.
+You are a professional YouTube Shorts viral clip editor.
 
-Analyze the transcript and select exactly 5 genuinely engaging moments.
+Analyze the transcript and find the 5 best engaging moments.
 
-LANGUAGE:
-${language}
+LANGUAGE: ${language}
 
-IMPORTANT TIMESTAMP RULES:
-- If transcript contains timestamps, use ONLY those timestamp positions as timing anchors.
-- Never invent timestamps when real transcript timestamps are available.
-- Each clip must begin near its actual interesting sentence.
-- End near the end of that moment.
-- Clips must not overlap unnecessarily.
-- Each clip should ideally be 30-60 seconds.
-- If the transcript has no timestamps, you may estimate timing, but estimates MUST NOT be presented as exact.
-- Do not give every clip the same start or end time.
-- Do not create fake quotes.
-- startTime and endTime must be numeric seconds.
-- endTime must always be greater than startTime.
+TIMESTAMP RULES:
+- Transcript timestamps are the most important timing reference.
+- Use timestamps that are supported by the transcript.
+- Do not invent exact timings when transcript timestamps are missing.
+- Never use the same start time for multiple clips.
+- Clips must not overlap unless absolutely necessary.
+- Each clip should ideally be 30 to 60 seconds.
+- If the transcript is too short, use shorter clips rather than inventing content.
+- startTime and endTime must be numbers in seconds.
+- endTime must be greater than startTime.
+- Do not invent quotes. Use words actually present in the transcript.
+- Select moments with hooks, emotion, surprise, humor, useful information, or curiosity.
+- If timestamps are missing, timing is only an estimate.
 
-TRANSCRIPT HAS TIMESTAMPS: ${hasRealTimestamps}
-AVAILABLE TIMESTAMPS (seconds):
-${transcriptTimes.join(", ") || "NONE"}
+TRANSCRIPT TIMESTAMP MODE:
+${hasTimestampedTranscript ? "TIMESTAMPED TRANSCRIPT" : "NO RELIABLE TIMESTAMPS"}
 
-TRANSCRIPT DURATION (seconds):
-${transcriptDuration ?? "UNKNOWN"}
+AVAILABLE TIMESTAMPS IN SECONDS:
+${timestamps.length ? timestamps.join(", ") : "None"}
 
-Find clips based on:
-1. Strong hooks
-2. Surprising or emotional moments
-3. Funny or relatable moments
-4. Useful or informative moments
-5. High curiosity or shareability
+TRANSCRIPT END TIME:
+${transcriptEnd !== null ? transcriptEnd : "Unknown"}
 
-Return JSON only in this format:
+Return JSON only in this exact structure:
 
 {
   "clips": [
     {
-      "title": "Catchy clip title",
+      "title": "Short catchy title",
       "startTime": 30,
-      "endTime": 65,
-      "hook": "Strong opening hook",
-      "startQuote": "Exact transcript beginning",
-      "endQuote": "Exact transcript ending",
+      "endTime": 60,
+      "hook": "Opening hook",
+      "startQuote": "Exact quote from transcript",
+      "endQuote": "Exact quote from transcript",
       "viral": 85,
-      "reason": "Why viewers will watch",
-      "confidence": 85
+      "reason": "Why this moment is engaging",
+      "confidence": 80
     }
   ],
   "titles": ["Title 1", "Title 2", "Title 3"],
@@ -110,77 +119,117 @@ TRANSCRIPT:
 ${transcript}
 `;
 
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" + apiKey,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.2
+    const apiUrl =
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" +
+      encodeURIComponent(apiKey);
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }]
           }
-        })
-      }
-    );
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.2
+        }
+      })
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error("Gemini API error: " + errorText);
+      console.error("Gemini API error:", errorText);
+
+      return res.status(502).json({
+        error: "Gemini analysis failed.",
+        details: errorText.slice(0, 500)
+      });
     }
 
     const result = await response.json();
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+    const responseText =
+      result.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    if (!text) {
-      throw new Error("Gemini returned an empty response.");
+    if (!responseText) {
+      throw new Error("Empty response from Gemini.");
     }
 
-    const data = JSON.parse(text);
-    const clips = Array.isArray(data.clips) ? data.clips : [];
+    const data = JSON.parse(responseText);
 
-    // Clip data validation
-    const validClips = clips
-      .filter(clip =>
-        Number.isFinite(Number(clip.startTime)) &&
-        Number.isFinite(Number(clip.endTime)) &&
-        Number(clip.endTime) > Number(clip.startTime)
-      )
+    if (!Array.isArray(data.clips)) {
+      throw new Error("Invalid clips response.");
+    }
+
+    // Validate and clean clip results
+    const clips = data.clips
+      .filter(clip => {
+        return (
+          Number.isFinite(Number(clip.startTime)) &&
+          Number.isFinite(Number(clip.endTime)) &&
+          Number(clip.endTime) > Number(clip.startTime)
+        );
+      })
       .map(clip => {
         let start = Math.max(0, Number(clip.startTime));
-        let end = Math.max(start + 1, Number(clip.endTime));
+        let end = Math.max(start, Number(clip.endTime));
 
-        // Real timestamp transcript ke duration se bahar nahi jane dena
-        if (transcriptDuration !== null) {
-          start = Math.min(start, transcriptDuration);
-          end = Math.min(end, transcriptDuration);
+        // Never exceed known transcript duration
+        if (transcriptEnd !== null) {
+          start = Math.min(start, transcriptEnd);
+          end = Math.min(end, transcriptEnd);
         }
 
         return {
-          ...clip,
+          title: String(clip.title || "Viral Moment"),
           startTime: Math.round(start),
           endTime: Math.round(end),
-          viral: Math.min(100, Math.max(0, Number(clip.viral) || 0)),
-          confidence: Math.min(100, Math.max(0, Number(clip.confidence) || 0)),
-          timingSource: hasRealTimestamps ? "transcript" : "estimated"
+          hook: String(clip.hook || ""),
+          startQuote: String(clip.startQuote || ""),
+          endQuote: String(clip.endQuote || ""),
+          viral: Math.max(
+            0,
+            Math.min(100, Number(clip.viral) || 0)
+          ),
+          reason: String(clip.reason || ""),
+          confidence: Math.max(
+            0,
+            Math.min(100, Number(clip.confidence) || 0)
+          ),
+          timingSource: hasTimestampedTranscript
+            ? "transcript"
+            : "estimated"
         };
       })
       .filter(clip => clip.endTime > clip.startTime);
 
+    // Remove duplicate start times
+    const uniqueClips = [];
+    const seenStarts = new Set();
+
+    for (const clip of clips) {
+      if (seenStarts.has(clip.startTime)) continue;
+      seenStarts.add(clip.startTime);
+      uniqueClips.push(clip);
+    }
+
     return res.status(200).json({
       success: true,
       modelUsed: "gemini-3.5-flash-lite",
-      timestampMode: hasRealTimestamps ? "transcript-based" : "estimated",
-      transcriptTimestampCount: transcriptTimes.length,
-      clips: validClips,
-      titles: data.titles || [],
-      hashtags: data.hashtags || [],
-      warning: hasRealTimestamps
+      timestampMode: hasTimestampedTranscript
+        ? "transcript-based"
+        : "estimated",
+      timestampCount: timestamps.length,
+      clips: uniqueClips.slice(0, 5),
+      titles: Array.isArray(data.titles) ? data.titles : [],
+      hashtags: Array.isArray(data.hashtags) ? data.hashtags : [],
+      warning: hasTimestampedTranscript
         ? null
-        : "Transcript mein real timestamps nahi hain. Clip timing estimated hai."
+        : "Transcript has no reliable timestamps. Clip timings are estimated."
     });
 
   } catch (error) {
