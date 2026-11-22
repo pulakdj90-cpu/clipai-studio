@@ -1,114 +1,43 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ClipAI Auto Captions</title>
 
 <style>
-* {
-  box-sizing: border-box;
+*{box-sizing:border-box}
+body{
+ margin:0;padding:15px;background:#090b12;color:white;
+ font-family:Arial,sans-serif
 }
-
-body {
-  margin: 0;
-  padding: 15px;
-  background: #090b12;
-  color: white;
-  font-family: Arial, sans-serif;
+.container{max-width:650px;margin:auto}
+h1{text-align:center;color:#b45cff}
+.card{
+ background:#171923;border:1px solid #343545;
+ border-radius:18px;padding:18px;margin:18px 0
 }
-
-.container {
-  max-width: 650px;
-  margin: auto;
+h2{font-size:22px}
+input,textarea,select{
+ width:100%;padding:14px;margin-top:10px;
+ border-radius:12px;border:1px solid #555;
+ background:#242632;color:white;font-size:16px
 }
-
-h1 {
-  text-align: center;
-  color: #b45cff;
-  margin-bottom: 25px;
+textarea{min-height:180px;resize:vertical}
+button{
+ width:100%;padding:16px;border:0;border-radius:12px;
+ background:#a347ff;color:white;font-size:17px;
+ font-weight:bold;margin-top:12px;cursor:pointer
 }
-
-.card {
-  background: #171923;
-  border: 1px solid #343545;
-  border-radius: 18px;
-  padding: 18px;
-  margin: 18px 0;
+button:disabled{opacity:.6}
+video{width:100%;margin-top:12px;border-radius:12px;background:black}
+.preview{
+ background:black;border-radius:12px;padding:20px;
+ min-height:140px;text-align:center;white-space:pre-wrap;
+ overflow-wrap:anywhere;font-size:20px;font-weight:bold
 }
-
-h2 {
-  font-size: 22px;
-  margin-top: 5px;
-}
-
-input, textarea, select {
-  width: 100%;
-  padding: 14px;
-  margin-top: 12px;
-  border-radius: 12px;
-  border: 1px solid #555;
-  background: #242637;
-  color: white;
-  font-size: 16px;
-}
-
-textarea {
-  min-height: 180px;
-  resize: vertical;
-}
-
-video {
-  width: 100%;
-  margin-top: 12px;
-  border-radius: 12px;
-  background: black;
-}
-
-button {
-  width: 100%;
-  padding: 16px;
-  border: 0;
-  border-radius: 12px;
-  background: #a43bff;
-  color: white;
-  font-size: 17px;
-  font-weight: bold;
-  margin-top: 12px;
-  cursor: pointer;
-}
-
-button:disabled {
-  opacity: 0.6;
-}
-
-.preview {
-  background: black;
-  border-radius: 12px;
-  padding: 20px;
-  min-height: 150px;
-  text-align: center;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 20px;
-  font-weight: bold;
-  line-height: 1.5;
-}
-
-.status {
-  text-align: center;
-  margin: 18px 0;
-  color: #c084fc;
-  white-space: pre-wrap;
-}
-
-.small {
-  color: #aaa;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
+.status{text-align:center;color:#c18aff;margin:15px}
+.small{color:#aaa;font-size:14px}
 </style>
 </head>
 
@@ -124,148 +53,145 @@ button:disabled {
 </div>
 
 <div class="card">
-<h2>2. AI Caption Generator</h2>
-
-<p class="small">
-Video ki boli hui baaton ka transcript/captions yahan paste karein.
-AI is text se viral captions, hooks aur hashtags banayega.
-</p>
-
-<input id="title" placeholder="Video title (optional)">
+<h2>2. Video Transcript</h2>
+<p>Video ki boli hui baat yahan paste karein.</p>
 
 <select id="language">
 <option value="Hindi">Hindi</option>
 <option value="Hinglish">Hinglish</option>
 <option value="English">English</option>
-<option value="Bengali">Bengali</option>
 <option value="Urdu">Urdu</option>
 </select>
 
-<textarea id="captions"
-placeholder="Yahan video transcript paste karein..."></textarea>
+<textarea id="transcript"
+placeholder="Video mein jo bola gaya hai, yahan paste karein..."></textarea>
 
 <button id="generate" onclick="generateAI()">
 🤖 Generate AI Captions
-</button>
-
-<button onclick="addCaptions()">
-✨ Preview Captions
 </button>
 </div>
 
 <div class="card">
 <h2>3. AI Result</h2>
-
-<div class="preview" id="preview">
-AI captions yahan appear honge.
+<div id="result" class="preview">
+AI result yahan appear hoga...
+</div>
+<button onclick="downloadResult()">⬇️ Download Result</button>
+<button onclick="copyResult()">📋 Copy Result</button>
 </div>
 
-<button onclick="downloadCaptions()">
-📥 Download Captions
-</button>
-</div>
-
-<div class="status" id="status"></div>
+<div id="status" class="status"></div>
+<p class="small" style="text-align:center">
+ClipAI Studio • AI content assistant
+</p>
 
 </div>
 
 <script>
 const file = document.getElementById("file");
 const video = document.getElementById("video");
-const captions = document.getElementById("captions");
-const preview = document.getElementById("preview");
+const transcript = document.getElementById("transcript");
+const result = document.getElementById("result");
 const status = document.getElementById("status");
-const generateButton = document.getElementById("generate");
+const generateBtn = document.getElementById("generate");
 
-let generatedText = "";
-
-file.addEventListener("change", function() {
-  if (!file.files || !file.files[0]) return;
-
+file.onchange = () => {
+ if(file.files[0]){
   video.src = URL.createObjectURL(file.files[0]);
-  status.textContent = "Video loaded successfully ✅";
-});
+  status.innerText = "Video loaded successfully ✅";
+ }
+};
 
-async function generateAI() {
-  const text = captions.value.trim();
+async function generateAI(){
 
-  if (!text) {
-    status.textContent =
-      "Pehle video transcript/captions paste karein.";
-    return;
-  }
+ const text = transcript.value.trim();
 
-  generateButton.disabled = true;
-  generateButton.textContent = "⏳ AI is working...";
-  status.textContent = "AI captions generate ho rahe hain...";
+ if(!text){
+  status.innerText = "Pehle video ka transcript paste karein ⚠️";
+  transcript.focus();
+  return;
+ }
 
-  try {
-    const response = await fetch("/api/captions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        videoTitle: document.getElementById("title").value,
-        captions: text,
-        language: document.getElementById("language").value
-      })
-    });
+ generateBtn.disabled = true;
+ generateBtn.innerText = "⏳ AI is working...";
+ status.innerText = "AI content generate ho raha hai...";
 
-    const data = await response.json();
+ try{
 
-    if (!response.ok) {
-      throw new Error(data.error || "AI request failed");
-    }
-
-    generatedText = data.result || "";
-
-    if (!generatedText) {
-      throw new Error("AI returned empty captions");
-    }
-
-    preview.textContent = generatedText;
-    status.textContent = "AI captions ready! ✅";
-
-  } catch (error) {
-    status.textContent = "Error: " + error.message;
-  }
-
-  generateButton.disabled = false;
-  generateButton.textContent = "🤖 Generate AI Captions";
-}
-
-function addCaptions() {
-  const text = captions.value.trim();
-
-  if (!text) {
-    status.textContent = "Pehle captions likhein.";
-    return;
-  }
-
-  preview.textContent = text;
-  generatedText = text;
-  status.textContent = "Caption preview ready ✅";
-}
-
-function downloadCaptions() {
-  const text = generatedText || preview.textContent;
-
-  if (!text || text === "AI captions yahan appear honge.") {
-    status.textContent = "Pehle captions generate karein.";
-    return;
-  }
-
-  const blob = new Blob([text], {
-    type: "text/plain;charset=utf-8"
+  const response = await fetch("/api/captions",{
+   method:"POST",
+   headers:{
+    "Content-Type":"application/json"
+   },
+   body:JSON.stringify({
+    videoTitle:file.files[0]?.name || "My Video",
+    captions:text,
+    language:document.getElementById("language").value
+   })
   });
 
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "ClipAI-Captions.txt";
-  link.click();
+  const data = await response.json();
 
-  status.textContent = "Captions downloaded ✅";
+  if(!response.ok){
+   throw new Error(data.error || "AI request failed");
+  }
+
+  result.innerText =
+   data.result ||
+   data.text ||
+   data.output ||
+   JSON.stringify(data,null,2);
+
+  status.innerText = "AI captions generated successfully ✅";
+
+ }catch(error){
+
+  result.innerText = "Error: " + error.message;
+  status.innerText = "AI generate nahi hua ❌";
+
+ }finally{
+
+  generateBtn.disabled = false;
+  generateBtn.innerText = "🤖 Generate AI Captions";
+ }
+}
+
+function downloadResult(){
+
+ const text = result.innerText.trim();
+
+ if(!text || text.includes("AI result yahan")){
+  status.innerText = "Pehle AI result generate karein ⚠️";
+  return;
+ }
+
+ const blob = new Blob([text],{type:"text/plain"});
+ const url = URL.createObjectURL(blob);
+ const a = document.createElement("a");
+
+ a.href = url;
+ a.download = "ClipAI-Captions.txt";
+ a.click();
+
+ URL.revokeObjectURL(url);
+ status.innerText = "Download started ✅";
+}
+
+async function copyResult(){
+
+ const text = result.innerText;
+
+ if(!text || text.includes("AI result yahan")){
+  status.innerText = "Pehle AI result generate karein ⚠️";
+  return;
+ }
+
+ try{
+  await navigator.clipboard.writeText(text);
+  status.innerText = "Copied successfully ✅";
+ }catch(e){
+  status.innerText = "Copy nahi hua, manually select karein.";
+ }
 }
 </script>
 
