@@ -1,9 +1,7 @@
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({
-      error: "POST method required"
-    });
+    return res.status(405).json({ error: "POST method required" });
   }
 
   try {
@@ -17,46 +15,46 @@ export default async function handler(req, res) {
 
     if (!apiKey) {
       return res.status(500).json({
-        error: "GEMINI_API_KEY is missing in Vercel"
+        error: "GEMINI_API_KEY missing in Vercel"
       });
     }
 
     if (!captions.trim()) {
       return res.status(400).json({
-        error: "Video transcript/captions required"
+        error: "Please paste video transcript/captions"
       });
     }
 
     const prompt = `
-You are an expert YouTube Shorts creator and caption writer.
+You are an expert YouTube Shorts creator and viral content strategist.
 
-Analyze the supplied transcript and create:
+Analyze this video transcript and create a complete Shorts content package.
 
-1. 3 catchy viral Shorts titles
-2. 5 powerful opening hooks
-3. Short, engaging captions for the video
-4. A short viral description
-5. 15 relevant hashtags
-6. 3 potential viral moments from the transcript
-7. A call to action
+VIDEO TITLE: ${videoTitle || "Unknown"}
 
-Video title: ${videoTitle || "Unknown"}
+LANGUAGE: ${language}
 
-Language: ${language}
-
-Transcript:
+TRANSCRIPT:
 ${captions}
 
-Write naturally in ${language}.
-Make the result engaging, easy to understand,
-and suitable for YouTube Shorts, Instagram Reels,
-and TikTok.
+Create the following:
 
-Do not invent facts that are not in the transcript.
+1. 5 viral YouTube Shorts titles
+2. 5 powerful opening hooks
+3. A short viral video description
+4. 15 relevant hashtags
+5. 3 potential viral moments from the transcript
+6. A strong call to action
+7. Rewrite the transcript into short, engaging captions
+8. Make captions easy to read on mobile
+9. Keep the output organized with clear headings
+10. Do not invent information that is not in the transcript
+
+Write everything in ${language}.
 `;
 
     const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" +
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" +
         encodeURIComponent(apiKey),
       {
         method: "POST",
@@ -66,16 +64,12 @@ Do not invent facts that are not in the transcript.
         body: JSON.stringify({
           contents: [
             {
-              parts: [
-                {
-                  text: prompt
-                }
-              ]
+              parts: [{ text: prompt }]
             }
           ],
           generationConfig: {
             temperature: 0.8,
-            maxOutputTokens: 2500
+            maxOutputTokens: 4000
           }
         })
       }
@@ -85,20 +79,16 @@ Do not invent facts that are not in the transcript.
 
     if (!response.ok) {
       return res.status(response.status).json({
-        error:
-          data.error?.message ||
-          "Gemini AI request failed"
+        error: data.error?.message || "Gemini API request failed"
       });
     }
 
     const result =
-      data.candidates?.[0]?.content?.parts
-        ?.map(part => part.text || "")
-        .join("") || "";
+      data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     if (!result) {
       return res.status(500).json({
-        error: "AI returned an empty response"
+        error: "Gemini returned an empty response"
       });
     }
 
