@@ -1,269 +1,482 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ClipAI Shorts Maker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClipAI Shorts Studio</title>
 
 <style>
 *{box-sizing:border-box}
 body{
-  margin:0;
-  background:#0b0b12;
-  color:#fff;
-  font-family:Arial,sans-serif;
+ margin:0;background:#090910;color:#fff;
+ font-family:Arial,sans-serif;
 }
 header{
-  padding:18px;
-  text-align:center;
-  background:#15111f;
-  border-bottom:1px solid #292434;
+ text-align:center;padding:20px 12px;
+ background:#15111f;border-bottom:1px solid #333;
 }
-h1{margin:0;color:#c77dff}
-.container{
-  max-width:600px;
-  margin:auto;
-  padding:20px;
-}
+header h1{margin:0;color:#d58aff}
+.container{max-width:650px;margin:auto;padding:16px}
 .card{
-  background:#171720;
-  padding:20px;
-  border-radius:18px;
-  border:1px solid #30303c;
-  margin-bottom:20px;
+ background:#171720;padding:18px;
+ border:1px solid #343440;border-radius:18px;
+ margin-bottom:18px;
 }
+h2{margin-top:0;color:#d58aff}
+input,select,textarea{
+ width:100%;padding:12px;margin-top:8px;
+ background:#252530;color:white;
+ border:1px solid #454550;border-radius:10px;
+ font-size:16px;
+}
+label{display:block;margin-top:14px}
 button{
-  width:100%;
-  padding:15px;
-  border:0;
-  border-radius:12px;
-  background:linear-gradient(90deg,#9333ea,#d45cff);
-  color:white;
-  font-weight:bold;
-  margin-top:12px;
-  font-size:16px;
+ width:100%;padding:15px;border:0;
+ border-radius:12px;margin-top:12px;
+ background:linear-gradient(90deg,#9333ea,#d45cff);
+ color:white;font-size:16px;font-weight:bold;
 }
-input{
-  width:100%;
-  padding:12px;
-  margin-top:10px;
-  background:#252530;
-  border:1px solid #444;
-  border-radius:10px;
-  color:white;
-}
-video{
-  display:block;
-  width:100%;
-  background:#000;
-  border-radius:12px;
-}
+button.secondary{background:#292936;border:1px solid #454550}
+button:disabled{opacity:.5}
 .preview{
-  width:270px;
-  max-width:100%;
-  aspect-ratio:9/16;
-  margin:auto;
-  background:#000;
-  overflow:hidden;
-  border-radius:18px;
+ width:270px;max-width:100%;
+ aspect-ratio:9/16;background:#000;
+ margin:15px auto;border-radius:18px;
+ overflow:hidden;position:relative;
 }
 .preview video{
-  width:100%;
-  height:100%;
-  object-fit:cover;
+ width:100%;height:100%;
+ object-fit:cover;background:#000;
 }
-label{
-  display:block;
-  margin-top:15px;
+.caption{
+ position:absolute;left:5%;width:90%;
+ text-align:center;font-size:22px;
+ font-weight:900;color:#fff;
+ text-shadow:2px 2px 4px #000,-2px -2px 4px #000;
+ padding:8px;pointer-events:none;
 }
+.caption.bottom{bottom:9%}
+.caption.middle{top:45%;transform:translateY(-50%)}
+.caption.top{top:8%}
 #status{
-  margin-top:15px;
-  color:#d38cff;
-  word-break:break-word;
+ padding:12px;margin-top:12px;
+ background:#222230;border-radius:10px;
+ color:#d9a4ff;word-break:break-word;
 }
+.small{color:#aaa;font-size:13px;line-height:1.5}
+.timeRow{display:flex;gap:10px}
+.timeRow div{flex:1}
 </style>
 </head>
 
 <body>
 
 <header>
-<h1>✨ ClipAI Shorts Maker</h1>
-<p>Create YouTube Shorts easily</p>
+<h1>✨ ClipAI Shorts Studio</h1>
+<p>Make your video into a vertical Short</p>
 </header>
 
 <div class="container">
 
 <div class="card">
 <h2>1. Upload Video</h2>
-<input type="file" id="videoFile" accept="video/*">
+<input id="file" type="file" accept="video/*">
+<p class="small">Select a video from your phone.</p>
 </div>
 
 <div class="card">
-<h2>2. Shorts Preview (9:16)</h2>
+<h2>2. Vertical Preview</h2>
+
 <div class="preview">
-<video id="video" controls playsinline></video>
+<video id="video" playsinline controls></video>
+<div id="captionPreview" class="caption bottom"></div>
 </div>
-</div>
 
-<div class="card">
-<h2>3. Select Clip</h2>
-
-<label>Start Time (seconds)</label>
-<input type="number" id="start" value="0" min="0">
-
-<label>End Time (seconds)</label>
-<input type="number" id="end" value="30" min="1">
-
-<button onclick="previewClip()">Preview Clip</button>
+<p class="small">
+Preview is cropped to a vertical 9:16 frame.
+</p>
 </div>
 
 <div class="card">
-<h2>4. Export Short</h2>
-<button onclick="exportClip()">Export Video</button>
-<div id="status"></div>
+<h2>3. Cut Your Clip</h2>
+
+<div class="timeRow">
+<div>
+<label>Start (seconds)</label>
+<input type="number" id="start" min="0" value="0" step="0.1">
+</div>
+
+<div>
+<label>End (seconds)</label>
+<input type="number" id="end" min="0" value="30" step="0.1">
+</div>
+</div>
+
+<button class="secondary" onclick="playClip()">▶ Preview Selected Clip</button>
+<button class="secondary" onclick="stopClip()">⏹ Stop</button>
+</div>
+
+<div class="card">
+<h2>4. Add Captions</h2>
+
+<label>Caption Text</label>
+<textarea id="captionText" rows="3" placeholder="Type your caption here..."></textarea>
+
+<label>Caption Position</label>
+<select id="captionPosition">
+<option value="bottom">Bottom</option>
+<option value="middle">Middle</option>
+<option value="top">Top</option>
+</select>
+
+<label>Caption Size</label>
+<input id="captionSize" type="range" min="16" max="40" value="22">
+
+<button class="secondary" onclick="updateCaption()">Update Caption</button>
+</div>
+
+<div class="card">
+<h2>5. Export Your Short</h2>
+
+<button id="exportBtn" onclick="exportVideo()">📥 Export Short (WebM)</button>
+
+<p class="small">
+Export is processed in your browser. Keep this page open until the download begins.
+</p>
+
+<div id="status">Upload a video to begin.</div>
 </div>
 
 </div>
 
 <script>
 const video = document.getElementById("video");
-const fileInput = document.getElementById("videoFile");
-const status = document.getElementById("status");
+const fileInput = document.getElementById("file");
+const statusBox = document.getElementById("status");
+const exportBtn = document.getElementById("exportBtn");
 
 let videoURL = null;
+let previewTimer = null;
+let exporting = false;
 
-fileInput.addEventListener("change", function(){
-  const file = this.files[0];
-  if(!file) return;
-
-  if(videoURL) URL.revokeObjectURL(videoURL);
-
-  videoURL = URL.createObjectURL(file);
-  video.src = videoURL;
-
-  video.onloadedmetadata = () => {
-    document.getElementById("end").value =
-      Math.min(30, Math.floor(video.duration));
-
-    status.innerText = "Video loaded successfully!";
-  };
-});
-
-function previewClip(){
-  const start = Number(document.getElementById("start").value);
-
-  if(!video.src){
-    alert("Please upload a video first");
-    return;
-  }
-
-  video.currentTime = start;
-  video.play();
+function status(text){
+ statusBox.innerText = text;
 }
 
-async function exportClip(){
+function getStart(){
+ return Number(document.getElementById("start").value)||0;
+}
 
-  if(!video.src){
-    alert("Please upload a video first");
-    return;
-  }
+function getEnd(){
+ return Number(document.getElementById("end").value)||0;
+}
 
-  const start = Number(document.getElementById("start").value);
-  const end = Number(document.getElementById("end").value);
+fileInput.addEventListener("change",()=>{
+ const file=fileInput.files[0];
+ if(!file)return;
 
-  if(end <= start){
-    alert("End time must be greater than start time");
-    return;
-  }
+ if(!file.type.startsWith("video/")){
+  status("Please select a video file.");
+  return;
+ }
 
-  status.innerText = "Preparing export...";
+ if(videoURL)URL.revokeObjectURL(videoURL);
 
-  try{
+ videoURL=URL.createObjectURL(file);
+ video.src=videoURL;
 
-    const canvas = document.createElement("canvas");
-    canvas.width = 720;
-    canvas.height = 1280;
+ video.onloadedmetadata=()=>{
+  const duration=video.duration;
+  document.getElementById("start").value=0;
+  document.getElementById("end").value=Math.min(30,duration);
 
-    const ctx = canvas.getContext("2d");
-    const stream = canvas.captureStream(30);
+  status(
+   "Video loaded successfully! Duration: "+
+   formatTime(duration)
+  );
+ };
+});
 
-    const recorder = new MediaRecorder(stream,{
-      mimeType:"video/webm"
-    });
+function formatTime(seconds){
+ const m=Math.floor(seconds/60);
+ const s=Math.floor(seconds%60);
+ return String(m).padStart(2,"0")+":"+
+        String(s).padStart(2,"0");
+}
 
-    const chunks = [];
+function validateClip(){
+ if(!video.src){
+  alert("Please upload a video first.");
+  return false;
+ }
 
-    recorder.ondataavailable = e => {
-      if(e.data.size > 0) chunks.push(e.data);
-    };
+ const start=getStart();
+ const end=getEnd();
 
-    recorder.onstop = () => {
+ if(start<0||end<=start||end>video.duration){
+  alert("Please enter valid Start and End times.");
+  return false;
+ }
 
-      const blob = new Blob(chunks,{
-        type:"video/webm"
-      });
+ return true;
+}
 
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "clipai-short.webm";
-      link.click();
+function playClip(){
+ if(!validateClip())return;
 
-      status.innerText = "Export completed!";
-    };
+ clearInterval(previewTimer);
 
+ video.pause();
+ video.currentTime=getStart();
+
+ video.onseeked=()=>{
+  video.play();
+
+  previewTimer=setInterval(()=>{
+   if(video.currentTime>=getEnd()){
     video.pause();
-    video.currentTime = start;
+    clearInterval(previewTimer);
+   }
+  },100);
+ };
+}
 
-    await new Promise(resolve=>{
-      video.onseeked = resolve;
-    });
+function stopClip(){
+ video.pause();
+ clearInterval(previewTimer);
+}
 
-    recorder.start();
+function updateCaption(){
+ const text=document.getElementById("captionText").value;
+ const box=document.getElementById("captionPreview");
 
-    video.play();
+ box.innerText=text;
+ box.className="caption "+document.getElementById("captionPosition").value;
+ box.style.fontSize=document.getElementById("captionSize").value+"px";
 
-    function draw(){
+ status("Caption updated.");
+}
 
-      if(video.paused || video.ended) return;
+document.getElementById("captionText").addEventListener("input",updateCaption);
+document.getElementById("captionPosition").addEventListener("change",updateCaption);
+document.getElementById("captionSize").addEventListener("input",updateCaption);
 
-      const vw = video.videoWidth;
-      const vh = video.videoHeight;
+function drawVertical(ctx,canvas){
+ if(!video.videoWidth||!video.videoHeight)return;
 
-      const targetRatio = 9/16;
-      const videoRatio = vw/vh;
+ const vw=video.videoWidth;
+ const vh=video.videoHeight;
+ const targetRatio=9/16;
+ const videoRatio=vw/vh;
 
-      let sx=0, sy=0, sw=vw, sh=vh;
+ let sx=0,sy=0,sw=vw,sh=vh;
 
-      if(videoRatio > targetRatio){
-        sw = vh*targetRatio;
-        sx = (vw-sw)/2;
-      }else{
-        sh = vw/targetRatio;
-        sy = (vh-sh)/2;
-      }
+ if(videoRatio>targetRatio){
+  sw=vh*targetRatio;
+  sx=(vw-sw)/2;
+ }else{
+  sh=vw/targetRatio;
+  sy=(vh-sh)/2;
+ }
 
-      ctx.drawImage(
-        video,
-        sx,sy,sw,sh,
-        0,0,canvas.width,canvas.height
-      );
+ ctx.drawImage(video,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
 
-      if(video.currentTime >= end){
-        video.pause();
-        recorder.stop();
-        return;
-      }
+ const text=document.getElementById("captionText").value.trim();
 
-      requestAnimationFrame(draw);
-    }
+ if(text){
+  const position=document.getElementById("captionPosition").value;
+  const fontSize=Number(document.getElementById("captionSize").value)*2;
 
-    requestAnimationFrame(draw);
+  ctx.font="bold "+fontSize+"px Arial";
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
 
-    status.innerText = "Recording your Short...";
+  const maxWidth=canvas.width*.88;
+  const words=text.split(/\s+/);
+  const lines=[];
+  let line="";
 
-  }catch(err){
-    status.innerText = "Export error: " + err.message;
+  for(const word of words){
+   const test=line?line+" "+word:word;
+
+   if(ctx.measureText(test).width>maxWidth&&line){
+    lines.push(line);
+    line=word;
+   }else{
+    line=test;
+   }
   }
+  if(line)lines.push(line);
+
+  const lineHeight=fontSize*1.2;
+  const blockHeight=lines.length*lineHeight;
+
+  let y;
+  if(position==="top"){
+   y=canvas.height*.12;
+  }else if(position==="middle"){
+   y=canvas.height*.5-blockHeight/2;
+  }else{
+   y=canvas.height*.82-blockHeight/2;
+  }
+
+  ctx.lineWidth=fontSize*.15;
+  ctx.strokeStyle="#000";
+  ctx.fillStyle="#fff";
+
+  for(const ln of lines){
+   ctx.strokeText(ln,canvas.width/2,y,maxWidth);
+   ctx.fillText(ln,canvas.width/2,y,maxWidth);
+   y+=lineHeight;
+  }
+ }
+}
+
+function supportedMime(){
+ const types=[
+  "video/webm;codecs=vp9,opus",
+  "video/webm;codecs=vp8,opus",
+  "video/webm"
+ ];
+
+ for(const type of types){
+  if(MediaRecorder.isTypeSupported(type))return type;
+ }
+
+ return "";
+}
+
+async function exportVideo(){
+ if(exporting)return;
+ if(!validateClip())return;
+
+ if(!window.MediaRecorder){
+  status("Your browser does not support video export.");
+  return;
+ }
+
+ const mime=supportedMime();
+
+ if(!mime){
+  status("WebM recording is not supported by this browser.");
+  return;
+ }
+
+ exporting=true;
+ exportBtn.disabled=true;
+
+ const start=getStart();
+ const end=getEnd();
+
+ const canvas=document.createElement("canvas");
+ canvas.width=720;
+ canvas.height=1280;
+
+ const ctx=canvas.getContext("2d");
+ const canvasStream=canvas.captureStream(30);
+
+ let combinedStream=canvasStream;
+
+ // Attempt to include audio from uploaded video.
+ try{
+  if(video.captureStream){
+   const sourceStream=video.captureStream();
+   const audioTracks=sourceStream.getAudioTracks();
+
+   audioTracks.forEach(track=>{
+    combinedStream.addTrack(track);
+   });
+  }
+ }catch(e){
+  console.log("Audio capture unavailable",e);
+ }
+
+ let recorder;
+ let chunks=[];
+
+ try{
+  recorder=new MediaRecorder(combinedStream,{mimeType:mime});
+ }catch(e){
+  status("Could not start recording: "+e.message);
+  exporting=false;
+  exportBtn.disabled=false;
+  return;
+ }
+
+ recorder.ondataavailable=(event)=>{
+  if(event.data&&event.data.size>0)chunks.push(event.data);
+ };
+
+ recorder.onerror=(event)=>{
+  status("Recording error. Try a shorter clip.");
+ };
+
+ recorder.onstop=()=>{
+  const blob=new Blob(chunks,{type:mime});
+  const url=URL.createObjectURL(blob);
+
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="clipai-short.webm";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+
+  status("Export finished! Your WebM video should be downloaded.");
+
+  combinedStream.getTracks().forEach(t=>t.stop());
+  exporting=false;
+  exportBtn.disabled=false;
+ };
+
+ try{
+  video.pause();
+  video.currentTime=start;
+
+  await new Promise((resolve,reject)=>{
+   const timeout=setTimeout(()=>reject(new Error("Video seek timed out")),10000);
+   video.onseeked=()=>{
+    clearTimeout(timeout);
+    resolve();
+   };
+  });
+
+  recorder.start(250);
+  await video.play();
+
+  status("Exporting video... Please wait.");
+
+  const render=()=>{
+   if(!exporting)return;
+
+   drawVertical(ctx,canvas);
+
+   if(video.currentTime>=end||video.ended){
+    video.pause();
+
+    if(recorder.state!=="inactive"){
+     recorder.stop();
+    }
+    return;
+   }
+
+   requestAnimationFrame(render);
+  };
+
+  requestAnimationFrame(render);
+
+ }catch(error){
+  if(recorder&&recorder.state!=="inactive"){
+   recorder.stop();
+  }
+
+  status("Export failed: "+error.message);
+  exporting=false;
+  exportBtn.disabled=false;
+ }
 }
 </script>
 
