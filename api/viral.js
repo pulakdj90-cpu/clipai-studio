@@ -1,4 +1,3 @@
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Use POST method" });
@@ -7,107 +6,98 @@ export default async function handler(req, res) {
   try {
     const { transcript, language = "Hindi" } = req.body || {};
 
-    if (
-      typeof transcript !== "string" ||
-      transcript.trim().length < 30
-    ) {
+    if (typeof transcript !== "string" || transcript.trim().length < 30) {
       return res.status(400).json({
         error: "Please paste a longer transcript."
       });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
-
     if (!apiKey) {
       return res.status(500).json({
         error: "Gemini API key missing"
       });
     }
 
-    // Detect timestamps from transcript
+    // Detect timestamps in transcript
     function extractTimestamps(text) {
-      const regex =
-        /\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]|(\b\d{1,2}:\d{2}:\d{2}\b)/g;
-
+      const regex = /\[?(\d{1,2}):(\d{2})(?::(\d{2}))?\]?/g;
       const times = [];
 
       for (const match of text.matchAll(regex)) {
-        let seconds = 0;
+        let seconds;
 
-        if (match[1] !== undefined) {
-          if (match[3] !== undefined) {
-            seconds =
-              Number(match[1]) * 3600 +
-              Number(match[2]) * 60 +
-              Number(match[3]);
-          } else {
-            seconds =
-              Number(match[1]) * 60 +
-              Number(match[2]);
-          }
-        } else if (match[4]) {
-          const parts = match[4].split(":").map(Number);
+        if (match[3] !== undefined) {
           seconds =
-            parts[0] * 3600 +
-            parts[1] * 60 +
-            parts[2];
+            Number(match[1]) * 3600 +
+            Number(match[2]) * 60 +
+            Number(match[3]);
+        } else {
+          seconds =
+            Number(match[1]) * 60 +
+            Number(match[2]);
         }
 
-        times.push(seconds);
+        if (Number.isFinite(seconds)) {
+          times.push(seconds);
+        }
       }
 
       return [...new Set(times)].sort((a, b) => a - b);
     }
 
     const timestamps = extractTimestamps(transcript);
-    const hasTimestampedTranscript = timestamps.length >= 2;
+    const hasTimestamps = timestamps.length >= 2;
     const transcriptEnd = timestamps.length
       ? Math.max(...timestamps)
       : null;
 
     const prompt = `
-You are a professional YouTube Shorts viral clip editor.
+You are an expert YouTube Shorts viral clip editor.
 
-Analyze the transcript and find the 5 best engaging moments.
+Find the 5 BEST engaging moments from the transcript.
 
 LANGUAGE: ${language}
 
-TIMESTAMP RULES:
-- Transcript timestamps are the most important timing reference.
-- Use timestamps that are supported by the transcript.
-- Do not invent exact timings when transcript timestamps are missing.
-- Never use the same start time for multiple clips.
-- Clips must not overlap unless absolutely necessary.
-- Each clip should ideally be 30 to 60 seconds.
-- If the transcript is too short, use shorter clips rather than inventing content.
-- startTime and endTime must be numbers in seconds.
-- endTime must be greater than startTime.
-- Do not invent quotes. Use words actually present in the transcript.
-- Select moments with hooks, emotion, surprise, humor, useful information, or curiosity.
-- If timestamps are missing, timing is only an estimate.
+STRICT TIMESTAMP RULES:
+- Read the transcript carefully.
+- If transcript timestamps exist, use them as timing references.
+- Never invent timestamp values that are not supported by the transcript.
+- Never make clips start at 0 unless the actual moment starts at 0.
+- Never create clips at fixed intervals such as 0, 10, 20, 30.
+- Clips must start at DIFFERENT moments.
+- Do not repeat the same clip.
+- Prefer clips of 30 to 60 seconds.
+- If the available transcript is shorter, shorter clips are acceptable.
+- startTime and endTime must be numeric seconds.
+- endTime must always be greater than startTime.
+- Use transcript wording for startQuote and endQuote.
+- Never invent quotes.
+- Choose funny, emotional, surprising, useful or curiosity-building moments.
+- If timestamps are missing, timing is an ESTIMATE, not exact.
 
-TRANSCRIPT TIMESTAMP MODE:
-${hasTimestampedTranscript ? "TIMESTAMPED TRANSCRIPT" : "NO RELIABLE TIMESTAMPS"}
+TIMESTAMP MODE:
+${hasTimestamps ? "TIMESTAMPED TRANSCRIPT" : "NO TIMESTAMPS"}
 
-AVAILABLE TIMESTAMPS IN SECONDS:
+TIMESTAMP VALUES AVAILABLE:
 ${timestamps.length ? timestamps.join(", ") : "None"}
 
-TRANSCRIPT END TIME:
+MAX TRANSCRIPT TIME:
 ${transcriptEnd !== null ? transcriptEnd : "Unknown"}
 
-Return JSON only in this exact structure:
+Return JSON ONLY:
 
 {
   "clips": [
     {
       "title": "Short catchy title",
-      "startTime": 30,
-      "endTime": 60,
+      "startTime": 120,
+      "endTime": 165,
       "hook": "Opening hook",
-      "startQuote": "Exact quote from transcript",
-      "endQuote": "Exact quote from transcript",
+      "startQuote": "Exact words from transcript",
+      "endQuote": "Exact ending words from transcript",
       "viral": 85,
-      "reason": "Why this moment is engaging",
+      "reason": "Why viewers will watch",
       "confidence": 80
     }
   ],
@@ -129,14 +119,10 @@ ${transcript}
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }]
-          }
-        ],
+        contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           responseMimeType: "application/json",
-          temperature: 0.2
+          temperature: 0.1
         }
       })
     });
@@ -147,7 +133,7 @@ ${transcript}
 
       return res.status(502).json({
         error: "Gemini analysis failed.",
-        details: errorText.slice(0, 500)
+        details: errorText.slice(0, 300)
       });
     }
 
@@ -156,7 +142,7 @@ ${transcript}
       result.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!responseText) {
-      throw new Error("Empty response from Gemini.");
+      throw new Error("Gemini returned an empty response.");
     }
 
     const data = JSON.parse(responseText);
@@ -165,29 +151,30 @@ ${transcript}
       throw new Error("Invalid clips response.");
     }
 
-    // Validate and clean clip results
+    // Validate AI timestamps
     const clips = data.clips
-      .filter(clip => {
-        return (
-          Number.isFinite(Number(clip.startTime)) &&
-          Number.isFinite(Number(clip.endTime)) &&
-          Number(clip.endTime) > Number(clip.startTime)
-        );
-      })
+      .filter(clip =>
+        Number.isFinite(Number(clip.startTime)) &&
+        Number.isFinite(Number(clip.endTime)) &&
+        Number(clip.endTime) > Number(clip.startTime)
+      )
       .map(clip => {
         let start = Math.max(0, Number(clip.startTime));
         let end = Math.max(start, Number(clip.endTime));
 
-        // Never exceed known transcript duration
+        // Limit timestamps to transcript range
         if (transcriptEnd !== null) {
           start = Math.min(start, transcriptEnd);
           end = Math.min(end, transcriptEnd);
         }
 
+        start = Math.round(start);
+        end = Math.round(end);
+
         return {
           title: String(clip.title || "Viral Moment"),
-          startTime: Math.round(start),
-          endTime: Math.round(end),
+          startTime: start,
+          endTime: end,
           hook: String(clip.hook || ""),
           startQuote: String(clip.startQuote || ""),
           endQuote: String(clip.endQuote || ""),
@@ -200,36 +187,41 @@ ${transcript}
             0,
             Math.min(100, Number(clip.confidence) || 0)
           ),
-          timingSource: hasTimestampedTranscript
+          timingSource: hasTimestamps
             ? "transcript"
             : "estimated"
         };
       })
       .filter(clip => clip.endTime > clip.startTime);
 
-    // Remove duplicate start times
+    // Remove duplicate or almost-identical clips
     const uniqueClips = [];
-    const seenStarts = new Set();
+    const usedStarts = new Set();
 
     for (const clip of clips) {
-      if (seenStarts.has(clip.startTime)) continue;
-      seenStarts.add(clip.startTime);
+      if (usedStarts.has(clip.startTime)) continue;
+
+      usedStarts.add(clip.startTime);
       uniqueClips.push(clip);
     }
 
     return res.status(200).json({
       success: true,
       modelUsed: "gemini-3.5-flash-lite",
-      timestampMode: hasTimestampedTranscript
+      timestampMode: hasTimestamps
         ? "transcript-based"
         : "estimated",
       timestampCount: timestamps.length,
       clips: uniqueClips.slice(0, 5),
-      titles: Array.isArray(data.titles) ? data.titles : [],
-      hashtags: Array.isArray(data.hashtags) ? data.hashtags : [],
-      warning: hasTimestampedTranscript
+      titles: Array.isArray(data.titles)
+        ? data.titles
+        : [],
+      hashtags: Array.isArray(data.hashtags)
+        ? data.hashtags
+        : [],
+      warning: hasTimestamps
         ? null
-        : "Transcript has no reliable timestamps. Clip timings are estimated."
+        : "Transcript timestamps missing. Clip timings are AI estimates, not exact."
     });
 
   } catch (error) {
