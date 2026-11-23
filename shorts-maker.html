@@ -217,7 +217,8 @@ fileInput.addEventListener("change",()=>{
 
  videoURL=URL.createObjectURL(file);
  video.src=videoURL;
-
+ video.load();
+video.onerror = () => status("Video format not supported. Try MP4 (H.264).");
  video.onloadedmetadata=()=>{
   const duration=video.duration;
   document.getElementById("start").value =
