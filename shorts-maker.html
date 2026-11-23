@@ -214,9 +214,14 @@ async function initializeFaceDetector(){
 
  }catch(error){
   console.error("Face detector loading error:",error);
-  status("AI could not load. Normal video editing still works.");
+
+  status("AI ERROR: "+(error.message || String(error)));
+
+  document.getElementById("trackingStatus").textContent =
+    "AI Load Failed: "+(error.message || String(error));
+
   return null;
- }
+}
 }
 
 /* FACE DETECTION */
