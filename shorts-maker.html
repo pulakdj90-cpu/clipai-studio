@@ -171,7 +171,11 @@ function getStart(){
 function getEnd(){
  return Number(document.getElementById("end").value)||0;
 } // AI CLIP TIMING AUTO IMPORT
-function importAIClipTiming(startTime, endTime) {
+const clipParams = new URLSearchParams(window.location.search);
+const aiStart = clipParams.get("start");
+const aiEnd = clipParams.get("end");
+const aiTitle = clipParams.get("title");
+ function importAIClipTiming(startTime, endTime) {
   function toSeconds(value) {
     if (typeof value === "number") return value;
 
@@ -216,8 +220,15 @@ fileInput.addEventListener("change",()=>{
 
  video.onloadedmetadata=()=>{
   const duration=video.duration;
-  document.getElementById("start").value=0;
-  document.getElementById("end").value=Math.min(30,duration);
+  document.getElementById("start").value =
+    aiStart !== null ? Math.max(0, Number(aiStart)) : 0;
+
+document.getElementById("end").value =
+    aiEnd !== null ? Math.min(Number(aiEnd), duration) : Math.min(30, duration);
+
+if (aiTitle) {
+    document.title = aiTitle + " - ClipAI Shorts Studio";
+}
 
   status(
    "Video loaded successfully! Duration: "+
