@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,7 +21,7 @@ button.active{border:2px solid #d58aff;background:linear-gradient(90deg,#9333ea,
 button:disabled{opacity:.5}
 .preview{width:270px;max-width:100%;aspect-ratio:9/16;background:#000;margin:15px auto;border-radius:18px;overflow:hidden;position:relative}
 .preview video{display:block;width:100%;height:100%;object-fit:cover;object-position:center;background:#000}
-.caption{position:absolute;left:5%;width:90%;text-align:center;font-size:22px;font-weight:900;color:white;text-shadow:2px 2px 4px #000,-2px -2px 4px #000;padding:8px;pointer-events:none}
+.caption{position:absolute;left:5%;width:90%;text-align:center;font-size:22px;font-weight:900;color:white;text-shadow:2px 2px 4px #000,-2px -2px 4px #000;padding:8px;pointer-events:none;white-space:pre-wrap}
 .caption.bottom{bottom:9%}
 .caption.middle{top:45%;transform:translateY(-50%)}
 .caption.top{top:8%}
@@ -34,6 +33,7 @@ button:disabled{opacity:.5}
 .cropButtons button{flex:1}
 .cropControls input[type=range]{width:100%}
 #status{padding:12px;margin-top:12px;background:#222230;border-radius:10px;color:#d9a4ff;word-break:break-word}
+#trackingStatus{padding:10px;border-radius:8px;background:#181824;word-break:break-word}
 @media(max-width:400px){.timeRow{gap:6px}.card{padding:14px}}
 </style>
 </head>
@@ -61,20 +61,22 @@ button:disabled{opacity:.5}
 <div id="captionPreview" class="caption bottom"></div>
 </div>
 
-<p class="small">Preview uses your crop and tracking settings.</p>
+<p class="small">Preview uses the same crop and tracking settings as export.</p>
 
 <div class="cropControls">
 
-<label><b>AI Auto Reframe</b></label>
+<label><b>🎯 AI Auto Reframe</b></label>
+
 <button type="button" id="trackingBtn" class="secondary" onclick="toggleTracking()">
 🎯 AI Face Tracking: OFF
 </button>
 
 <p class="small" id="trackingStatus">
-AI tracking is optional. Video works without AI.
+AI tracking is optional. Normal video editing works without AI.
 </p>
 
 <label><b>Crop Mode</b></label>
+
 <div class="cropButtons">
 <button type="button" id="fillBtn" class="secondary active" onclick="setCropMode('fill')">Fill Screen</button>
 <button type="button" id="fitBtn" class="secondary" onclick="setCropMode('fit')">Fit Original</button>
@@ -140,60 +142,108 @@ AI tracking is optional. Video works without AI.
 <script>
 "use strict";
 
-/* ELEMENTS */
-const video=document.getElementById("video");
-const fileInput=document.getElementById("file");
-const statusBox=document.getElementById("status");
-const exportBtn=document.getElementById("exportBtn");
+/* ================= ELEMENTS ================= */
 
-/* STATE */
-let videoURL=null;
-let exporting=false;
-let clipStopHandler=null;
+const video = document.getElementById("video");
+const fileInput = document.getElementById("file");
+const statusBox = document.getElementById("status");
+const exportBtn = document.getElementById("exportBtn");
+const trackingBtn = document.getElementById("trackingBtn");
+const trackingStatus = document.getElementById("trackingStatus");
 
-let cropMode="fill";
-let cropZoom=1;
-let manualX=0.5;
+/* ================= STATE ================= */
 
-let trackingEnabled=false;
-let faceDetector=null;
-let trackedX=0.5;
-let trackedY=0.5;
-let detectorBusy=false;
-let lastDetection=0;
+let videoURL = null;
+let exporting = false;
+let clipStopHandler = null;
 
-/* STATUS */
+let cropMode = "fill";
+let cropZoom = 1;
+let manualX = 0.5;
+
+let trackingEnabled = false;
+let faceDetector = null;
+
+let trackedX = 0.5;
+let trackedY = 0.5;
+
+let detectorBusy = false;
+let lastDetection = 0;
+let trackingRAF = null;
+
+/* ================= STATUS ================= */
+
 function status(text){
- statusBox.textContent=text;
+ statusBox.textContent = text;
 }
 
-/* TIME */
+/* ================= TIME ================= */
+
 function getStart(){
- return Number(document.getElementById("start").value)||0;
+ return Number(document.getElementById("start").value) || 0;
 }
 
 function getEnd(){
- return Number(document.getElementById("end").value)||0;
+ return Number(document.getElementById("end").value) || 0;
 }
 
 function formatTime(seconds){
- if(!Number.isFinite(seconds))return "00:00";
+ if(!Number.isFinite(seconds)) return "00:00";
+
  const m=Math.floor(seconds/60);
  const s=Math.floor(seconds%60);
+
  return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
 }
 
-/* FACE DETECTOR */
+/* ===================================================
+   AI FACE DETECTOR LOADER
+   =================================================== */
+
 async function initializeFaceDetector(){
 
- if(faceDetector)return faceDetector;
+ if(faceDetector){
+  return faceDetector;
+ }
+
+ trackingBtn.textContent="⏳ Loading AI...";
+ trackingStatus.textContent="Loading AI face detector...";
+
+ const sources=[
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs",
+  "https://unpkg.com/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs"
+ ];
+
+ let mp=null;
+ let loadError=null;
+
+ /* Try more than one CDN */
+ for(const source of sources){
+
+  try{
+   mp=await import(source);
+   break;
+  }catch(error){
+   loadError=error;
+   console.warn("MediaPipe CDN failed:",source,error);
+  }
+ }
+
+ if(!mp){
+
+  console.error("AI library could not load:",loadError);
+
+  trackingStatus.textContent=
+   "AI library failed to load. Check internet connection and retry.";
+
+  trackingBtn.textContent="🎯 AI Face Tracking: OFF";
+
+  status("AI library failed to load. Normal video editing still works.");
+
+  return null;
+ }
 
  try{
-  status("Loading AI face detection...");
-
-  const mp=await import(
-   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs"
-  );
 
   const vision=await mp.FilesetResolver.forVisionTasks(
    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm"
@@ -202,173 +252,247 @@ async function initializeFaceDetector(){
   faceDetector=await mp.FaceDetector.createFromOptions(vision,{
    baseOptions:{
     modelAssetPath:
-    "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+     "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
     delegate:"CPU"
    },
+
    runningMode:"VIDEO",
-   minDetectionConfidence:0.45
+   minDetectionConfidence:0.45,
+   minSuppressionThreshold:0.3
   });
 
-  status("AI face detection loaded successfully.");
+  trackingStatus.textContent=
+   "AI loaded successfully. Play video to track faces.";
+
+  status("AI Face Detector loaded successfully.");
+
   return faceDetector;
 
  }catch(error){
-  console.error("Face detector loading error:",error);
 
-  status("AI ERROR: "+(error.message || String(error)));
+  console.error("AI initialization error:",error);
 
-  document.getElementById("trackingStatus").textContent =
-    "AI Load Failed: "+(error.message || String(error));
+  trackingStatus.textContent=
+   "AI initialization failed: "+error.message;
+
+  trackingBtn.textContent="🎯 AI Face Tracking: OFF";
+
+  status("AI model failed to initialize.");
+
+  faceDetector=null;
 
   return null;
-}
+ }
 }
 
-/* FACE DETECTION */
+/* ===================================================
+   FACE DETECTION
+   =================================================== */
+
 async function detectFace(){
 
- if(!trackingEnabled||!faceDetector||!video.videoWidth)return;
- if(video.paused||video.ended||detectorBusy)return;
+ if(!trackingEnabled) return;
+ if(!faceDetector) return;
+ if(!video.videoWidth) return;
+ if(video.paused || video.ended) return;
+ if(detectorBusy) return;
 
  const now=performance.now();
 
- /* Detect approximately 5-7 times per second */
- if(now-lastDetection<160)return;
+ /* Detect approximately 5 times per second */
+ if(now-lastDetection<180) return;
 
  lastDetection=now;
  detectorBusy=true;
 
  try{
+
   const result=faceDetector.detectForVideo(video,now);
   const detections=result.detections||[];
 
   if(detections.length){
 
+   /* Select highest confidence face */
    let best=detections[0];
 
    for(const d of detections){
+
     const score=d.categories?.[0]?.score||0;
     const bestScore=best.categories?.[0]?.score||0;
-    if(score>bestScore)best=d;
+
+    if(score>bestScore){
+     best=d;
+    }
    }
 
    const box=best.boundingBox;
 
    if(box){
 
-    /* Convert face center to normalized video coordinates */
     const rawX=(box.originX+box.width/2)/video.videoWidth;
     const rawY=(box.originY+box.height/2)/video.videoHeight;
 
-    /* Smooth movement to reduce crop jitter */
-    trackedX=trackedX*0.65+rawX*0.35;
-    trackedY=trackedY*0.65+rawY*0.35;
+    /* Smooth tracking */
+    trackedX=trackedX*0.7+rawX*0.3;
+    trackedY=trackedY*0.7+rawY*0.3;
 
     trackedX=Math.max(0,Math.min(1,trackedX));
     trackedY=Math.max(0,Math.min(1,trackedY));
 
-    document.getElementById("trackingStatus").textContent="Face detected • Tracking active";
+    trackingStatus.textContent="✅ Face detected • Tracking active";
 
     updatePreview();
    }
 
   }else{
-   document.getElementById("trackingStatus").textContent="Face not detected • Using last position";
+
+   trackingStatus.textContent=
+    "Face not detected • Holding previous position";
   }
 
  }catch(error){
-  console.warn("Face detection error:",error);
+
+  console.error("Detection error:",error);
+
+  trackingStatus.textContent=
+   "Detection error: "+error.message;
+
  }finally{
+
   detectorBusy=false;
  }
 }
 
-/* TRACKING LOOP */
+/* ================= TRACKING LOOP ================= */
+
 function trackingLoop(){
 
- if(trackingEnabled&&!video.paused&&!video.ended){
+ if(trackingEnabled && !video.paused && !video.ended){
   detectFace();
  }
 
- requestAnimationFrame(trackingLoop);
+ trackingRAF=requestAnimationFrame(trackingLoop);
 }
 
-requestAnimationFrame(trackingLoop);
+trackingRAF=requestAnimationFrame(trackingLoop);
 
-/* TRACKING CONTROL */
+/* ================= TRACKING BUTTON ================= */
+
 async function toggleTracking(){
 
- const button=document.getElementById("trackingBtn");
-
  if(trackingEnabled){
+
   trackingEnabled=false;
-  button.textContent="🎯 AI Face Tracking: OFF";
-  button.classList.remove("active");
-  document.getElementById("trackingStatus").textContent="Tracking stopped.";
+
+  trackingBtn.textContent="🎯 AI Face Tracking: OFF";
+  trackingBtn.classList.remove("active");
+
+  trackingStatus.textContent="Face tracking stopped.";
+
   updatePreview();
-  status("Face tracking off.");
+
+  status("Face tracking turned off.");
+
   return;
  }
 
- button.textContent="⏳ Loading AI...";
+ if(!video.videoWidth){
+
+  alert("Please upload a video first.");
+  return;
+ }
+
+ trackingBtn.textContent="⏳ Loading AI...";
+ trackingBtn.disabled=true;
 
  const detector=await initializeFaceDetector();
 
+ trackingBtn.disabled=false;
+
  if(!detector){
+
   trackingEnabled=false;
-  button.textContent="🎯 AI Face Tracking: OFF";
-  button.classList.remove("active");
+
+  trackingBtn.textContent="🎯 AI Face Tracking: OFF";
+  trackingBtn.classList.remove("active");
+
   return;
  }
 
- /* Start from manual position */
  trackedX=manualX;
  trackedY=0.5;
 
  trackingEnabled=true;
- button.textContent="🎯 AI Face Tracking: ON";
- button.classList.add("active");
 
- document.getElementById("trackingStatus").textContent="Ready • Play video to detect face";
- status("AI tracking ready. Play the video.");
+ trackingBtn.textContent="🎯 AI Face Tracking: ON";
+ trackingBtn.classList.add("active");
+
+ trackingStatus.textContent="Ready. Press Play to start face tracking.";
+
+ status("AI tracking enabled. Play the video to track faces.");
+
  updatePreview();
 }
 
-/* CROP MODE */
+/* ================= CROP MODE ================= */
+
 function setCropMode(mode){
 
  cropMode=mode==="fit"?"fit":"fill";
 
- document.getElementById("fillBtn").classList.toggle("active",cropMode==="fill");
- document.getElementById("fitBtn").classList.toggle("active",cropMode==="fit");
+ document.getElementById("fillBtn").classList.toggle(
+  "active",cropMode==="fill"
+ );
+
+ document.getElementById("fitBtn").classList.toggle(
+  "active",cropMode==="fit"
+ );
 
  updatePreview();
- status(cropMode==="fit"?"Fit Original selected.":"Fill Screen selected.");
+
+ status(cropMode==="fit"?
+  "Fit Original selected.":
+  "Fill Screen selected.");
 }
 
 document.getElementById("cropZoom").addEventListener("input",e=>{
+
  cropZoom=Number(e.target.value)||1;
- document.getElementById("zoomValue").textContent=cropZoom.toFixed(2)+"x";
+
+ document.getElementById("zoomValue").textContent=
+  cropZoom.toFixed(2)+"x";
+
  updatePreview();
 });
 
 document.getElementById("manualX").addEventListener("input",e=>{
+
  manualX=Number(e.target.value)/100;
- if(!trackingEnabled)updatePreview();
+
+ if(!trackingEnabled){
+  updatePreview();
+ }
 });
 
-/* COMMON CROP CALCULATION */
+/* ===================================================
+   COMMON CROP CALCULATION
+   Used by preview/export
+   =================================================== */
+
 function getCrop(){
 
  const vw=video.videoWidth;
  const vh=video.videoHeight;
 
- if(!vw||!vh)return null;
+ if(!vw||!vh) return null;
 
  const targetRatio=9/16;
  const videoRatio=vw/vh;
 
- let sx=0,sy=0,sw=vw,sh=vh;
+ let sx=0;
+ let sy=0;
+ let sw=vw;
+ let sh=vh;
 
  if(cropMode==="fit"){
   return {fit:true,sx,sy,sw,sh};
@@ -376,21 +500,25 @@ function getCrop(){
 
  if(videoRatio>targetRatio){
 
-  /* Landscape video: crop horizontal */
+  /* Landscape video: horizontal crop */
+
   sh=vh;
   sw=(vh*targetRatio)/cropZoom;
 
   const center=trackingEnabled?trackedX:manualX;
+
   sx=(vw-sw)*center;
   sy=0;
 
  }else{
 
-  /* Portrait or square video: crop vertical */
+  /* Portrait video: vertical crop */
+
   sw=vw;
   sh=(vw/targetRatio)/cropZoom;
 
   const centerY=trackingEnabled?trackedY:0.5;
+
   sy=(vh-sh)*centerY;
   sx=0;
  }
@@ -398,18 +526,26 @@ function getCrop(){
  sx=Math.max(0,Math.min(vw-sw,sx));
  sy=Math.max(0,Math.min(vh-sh,sy));
 
- return {fit:false,sx,sy,sw,sh};
+ return {
+  fit:false,
+  sx,sy,sw,sh
+ };
 }
 
-/* PREVIEW POSITION */
+/* ===================================================
+   PREVIEW
+   =================================================== */
+
 function updatePreview(){
 
- if(!video.videoWidth)return;
+ if(!video.videoWidth) return;
 
  if(cropMode==="fit"){
+
   video.style.objectFit="contain";
   video.style.objectPosition="50% 50%";
   video.style.transform="scale("+cropZoom+")";
+
   return;
  }
 
@@ -418,36 +554,48 @@ function updatePreview(){
 
  const vw=video.videoWidth;
  const vh=video.videoHeight;
+
  const targetRatio=9/16;
  const videoRatio=vw/vh;
 
  if(videoRatio>targetRatio){
 
-  const visibleFraction=(vh*targetRatio/cropZoom)/vw;
+  const visibleFraction=
+   (vh*targetRatio/cropZoom)/vw;
+
   const center=trackingEnabled?trackedX:manualX;
+
   const position=(visibleFraction>=1)?50:
    ((center-visibleFraction/2)/(1-visibleFraction))*100;
 
-  video.style.objectPosition=Math.max(0,Math.min(100,position))+"% 50%";
+  video.style.objectPosition=
+   Math.max(0,Math.min(100,position))+"% 50%";
 
  }else{
 
-  const visibleFraction=(vw/targetRatio/cropZoom)/vh;
+  const visibleFraction=
+   (vw/targetRatio/cropZoom)/vh;
+
   const center=trackingEnabled?trackedY:0.5;
+
   const position=(visibleFraction>=1)?50:
    ((center-visibleFraction/2)/(1-visibleFraction))*100;
 
-  video.style.objectPosition="50% "+Math.max(0,Math.min(100,position))+"%";
+  video.style.objectPosition=
+   "50% "+Math.max(0,Math.min(100,position))+"%";
  }
 }
 
-/* VIDEO UPLOAD */
+/* ================= VIDEO UPLOAD ================= */
+
 fileInput.addEventListener("change",()=>{
 
  const file=fileInput.files&&fileInput.files[0];
- if(!file)return;
+
+ if(!file) return;
 
  if(!file.type.startsWith("video/")){
+
   status("Please select a valid video.");
   return;
  }
@@ -473,7 +621,9 @@ fileInput.addEventListener("change",()=>{
   const duration=video.duration;
 
   document.getElementById("start").value=0;
-  document.getElementById("end").value=Math.min(30,duration);
+
+  document.getElementById("end").value=
+   Math.min(30,duration);
 
   trackedX=manualX;
   trackedY=0.5;
@@ -481,19 +631,25 @@ fileInput.addEventListener("change",()=>{
   updatePreview();
 
   status("Video loaded successfully! Duration: "+formatTime(duration));
+
+  trackingStatus.textContent=
+   "Video ready. Enable AI tracking if needed.";
  };
 
  video.onerror=()=>{
-  status("Video failed to load. Try an MP4/H.264 video.");
+
+  status("Video failed to load. Try MP4/H.264 video.");
  };
 
  video.load();
 });
 
-/* VALIDATION */
+/* ================= VALIDATION ================= */
+
 function validateClip(){
 
  if(!video.src||!video.videoWidth){
+
   alert("Please upload a video first.");
   return false;
  }
@@ -501,8 +657,12 @@ function validateClip(){
  const start=getStart();
  const end=getEnd();
 
- if(!Number.isFinite(start)||!Number.isFinite(end)||
-    start<0||end<=start||end>video.duration){
+ if(!Number.isFinite(start)||
+    !Number.isFinite(end)||
+    start<0||
+    end<=start||
+    end>video.duration){
+
   alert("Please enter valid Start and End times.");
   return false;
  }
@@ -510,7 +670,8 @@ function validateClip(){
  return true;
 }
 
-/* SAFE SEEK */
+/* ================= SAFE SEEK ================= */
+
 function seekVideo(time){
 
  return new Promise((resolve,reject)=>{
@@ -521,25 +682,33 @@ function seekVideo(time){
   }
 
   const timeout=setTimeout(()=>{
+
    video.removeEventListener("seeked",onSeek);
+
    reject(new Error("Video seek timed out"));
+
   },10000);
 
   function onSeek(){
+
    clearTimeout(timeout);
+
    video.removeEventListener("seeked",onSeek);
+
    resolve();
   }
 
   video.addEventListener("seeked",onSeek);
+
   video.currentTime=time;
  });
 }
 
-/* PREVIEW CLIP */
+/* ================= PREVIEW CLIP ================= */
+
 async function playClip(){
 
- if(!validateClip())return;
+ if(!validateClip()) return;
 
  stopClip();
 
@@ -547,19 +716,27 @@ async function playClip(){
  const end=getEnd();
 
  video.pause();
+
  status("Preparing preview...");
 
  try{
+
   await seekVideo(start);
+
   await video.play();
 
   status("Playing selected clip.");
 
   clipStopHandler=()=>{
+
    if(video.currentTime>=end){
+
     video.pause();
+
     video.removeEventListener("timeupdate",clipStopHandler);
+
     clipStopHandler=null;
+
     status("Preview finished.");
    }
   };
@@ -567,40 +744,55 @@ async function playClip(){
   video.addEventListener("timeupdate",clipStopHandler);
 
  }catch(error){
+
   status("Preview error: "+error.message);
  }
 }
 
-/* STOP */
+/* ================= STOP ================= */
+
 function stopClip(){
 
  video.pause();
 
  if(clipStopHandler){
+
   video.removeEventListener("timeupdate",clipStopHandler);
+
   clipStopHandler=null;
  }
 }
 
-/* CAPTIONS */
+/* ================= CAPTIONS ================= */
+
 function updateCaption(){
 
  const text=document.getElementById("captionText").value;
  const box=document.getElementById("captionPreview");
 
  box.textContent=text;
- box.className="caption "+document.getElementById("captionPosition").value;
- box.style.fontSize=document.getElementById("captionSize").value+"px";
+
+ box.className=
+  "caption "+document.getElementById("captionPosition").value;
+
+ box.style.fontSize=
+  document.getElementById("captionSize").value+"px";
 }
 
 document.getElementById("captionText").addEventListener("input",updateCaption);
+
 document.getElementById("captionPosition").addEventListener("change",updateCaption);
+
 document.getElementById("captionSize").addEventListener("input",updateCaption);
 
-/* DRAW EXPORT FRAME */
+/* ===================================================
+   DRAW EXPORT FRAME
+   Same crop logic as preview
+   =================================================== */
+
 function drawVertical(ctx,canvas){
 
- if(!video.videoWidth)return;
+ if(!video.videoWidth) return;
 
  const vw=video.videoWidth;
  const vh=video.videoHeight;
@@ -609,52 +801,78 @@ function drawVertical(ctx,canvas){
  ctx.fillRect(0,0,canvas.width,canvas.height);
 
  const crop=getCrop();
- if(!crop)return;
+
+ if(!crop) return;
 
  if(crop.fit){
 
-  const scale=Math.min(canvas.width/vw,canvas.height/vh)*cropZoom;
+  const scale=Math.min(
+   canvas.width/vw,
+   canvas.height/vh
+  )*cropZoom;
+
   const dw=vw*scale;
   const dh=vh*scale;
 
-  ctx.drawImage(video,(canvas.width-dw)/2,(canvas.height-dh)/2,dw,dh);
+  ctx.drawImage(
+   video,
+   (canvas.width-dw)/2,
+   (canvas.height-dh)/2,
+   dw,
+   dh
+  );
 
  }else{
 
   ctx.drawImage(
    video,
-   crop.sx,crop.sy,crop.sw,crop.sh,
-   0,0,canvas.width,canvas.height
+   crop.sx,
+   crop.sy,
+   crop.sw,
+   crop.sh,
+   0,
+   0,
+   canvas.width,
+   canvas.height
   );
  }
 
  /* CAPTIONS */
+
  const text=document.getElementById("captionText").value.trim();
- if(!text)return;
+
+ if(!text) return;
 
  const position=document.getElementById("captionPosition").value;
- const fontSize=Number(document.getElementById("captionSize").value)*2;
+
+ const fontSize=
+  Number(document.getElementById("captionSize").value)*2;
 
  ctx.font="bold "+fontSize+"px Arial";
  ctx.textAlign="center";
  ctx.textBaseline="middle";
 
  const maxWidth=canvas.width*.88;
+
  const lines=[];
  let line="";
 
  for(const word of text.split(/\s+/)){
+
   const test=line?line+" "+word:word;
 
   if(ctx.measureText(test).width>maxWidth&&line){
+
    lines.push(line);
    line=word;
+
   }else{
+
    line=test;
   }
  }
 
- if(line)lines.push(line);
+ if(line) lines.push(line);
 
  const lineHeight=fontSize*1.2;
  const blockHeight=lines.length*lineHeight;
@@ -670,13 +888,16 @@ function drawVertical(ctx,canvas){
  ctx.fillStyle="#fff";
 
  for(const ln of lines){
+
   ctx.strokeText(ln,canvas.width/2,y,maxWidth);
   ctx.fillText(ln,canvas.width/2,y,maxWidth);
+
   y+=lineHeight;
  }
 }
 
-/* MIME */
+/* ================= MIME ================= */
+
 function supportedMime(){
 
  const types=[
@@ -686,19 +907,27 @@ function supportedMime(){
  ];
 
  for(const type of types){
-  if(MediaRecorder.isTypeSupported(type))return type;
+
+  if(MediaRecorder.isTypeSupported(type)){
+   return type;
+  }
  }
 
  return "";
 }
 
-/* EXPORT */
+/* ===================================================
+   EXPORT
+   =================================================== */
+
 async function exportVideo(){
 
- if(exporting)return;
- if(!validateClip())return;
+ if(exporting) return;
+
+ if(!validateClip()) return;
 
  if(!window.MediaRecorder){
+
   status("Video export is not supported in this browser.");
   return;
  }
@@ -706,6 +935,7 @@ async function exportVideo(){
  const mime=supportedMime();
 
  if(!mime){
+
   status("WebM recording is not supported.");
   return;
  }
@@ -717,17 +947,26 @@ async function exportVideo(){
  const end=getEnd();
 
  const canvas=document.createElement("canvas");
+
  canvas.width=720;
  canvas.height=1280;
 
  const ctx=canvas.getContext("2d");
+
  const stream=canvas.captureStream(30);
 
  /* AUDIO */
+
  try{
+
   const sourceStream=video.captureStream();
-  sourceStream.getAudioTracks().forEach(track=>stream.addTrack(track));
+
+  sourceStream.getAudioTracks().forEach(track=>{
+   stream.addTrack(track);
+  });
+
  }catch(error){
+
   console.warn("Audio capture unavailable:",error);
  }
 
@@ -735,30 +974,44 @@ async function exportVideo(){
  let recorder;
 
  try{
+
   recorder=new MediaRecorder(stream,{mimeType:mime});
+
  }catch(error){
+
   status("Recorder error: "+error.message);
+
   stream.getTracks().forEach(t=>t.stop());
+
   exporting=false;
   exportBtn.disabled=false;
+
   return;
  }
 
  recorder.ondataavailable=e=>{
-  if(e.data&&e.data.size)chunks.push(e.data);
+
+  if(e.data&&e.data.size){
+   chunks.push(e.data);
+  }
  };
 
  recorder.onerror=()=>{
+
   status("Recording error. Try a shorter video.");
  };
 
  recorder.onstop=()=>{
+
   const blob=new Blob(chunks,{type:mime});
+
   const url=URL.createObjectURL(blob);
 
   const a=document.createElement("a");
+
   a.href=url;
   a.download="clipai-short.webm";
+
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -776,22 +1029,29 @@ async function exportVideo(){
  try{
 
   video.pause();
+
   await seekVideo(start);
 
   recorder.start(250);
+
   await video.play();
 
   status("Exporting video... AI tracking active if enabled.");
 
   const render=()=>{
 
-   if(!exporting)return;
+   if(!exporting) return;
 
    drawVertical(ctx,canvas);
 
    if(video.currentTime>=end||video.ended){
+
     video.pause();
-    if(recorder.state!=="inactive")recorder.stop();
+
+    if(recorder.state!=="inactive"){
+     recorder.stop();
+    }
+
     return;
    }
 
@@ -802,7 +1062,9 @@ async function exportVideo(){
 
  }catch(error){
 
-  if(recorder&&recorder.state!=="inactive")recorder.stop();
+  if(recorder&&recorder.state!=="inactive"){
+   recorder.stop();
+  }
 
   status("Export failed: "+error.message);
 
