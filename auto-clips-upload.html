@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClipAI Studio — Auto Clipper Upload</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#090910;color:#f5f5fb;font-family:system-ui,Arial,sans-serif;padding:18px}
+main{max-width:760px;margin:24px auto;background:#171722;border:1px solid #292938;border-radius:18px;padding:22px}
+h1{font-size:28px;margin:0 0 8px}p{color:#a9a9ba;line-height:1.5}label{display:block;margin:20px 0 8px;font-weight:600}
+input[type=file]{width:100%;padding:14px;border:1px solid #333344;background:#101018;color:white;border-radius:12px}
+button{width:100%;border:0;border-radius:12px;padding:15px;background:linear-gradient(90deg,#a34be5,#cf62f8);color:white;font-weight:700;font-size:16px;margin-top:16px}
+#status{margin-top:18px;white-space:pre-wrap;color:#d4d4e0}video{width:100%;margin-top:14px;border-radius:12px;max-height:420px;background:#000}small{color:#88889a}
+</style></head><body><main>
+<h1>✦ ClipAI Auto Clipper</h1><p>Stage 1: Upload a video you own or have permission to use. The secure upload setup keeps your Cloudinary secret on the server.</p>
+<label for="videoFile">Choose video</label><input id="videoFile" type="file" accept="video/*">
+<button id="uploadBtn">Upload video</button><div id="status" role="status"></div><video id="preview" controls hidden></video><small id="assetInfo"></small>
+</main><script>
+const fileInput=document.getElementById('videoFile'),btn=document.getElementById('uploadBtn'),status=document.getElementById('status'),preview=document.getElementById('preview'),assetInfo=document.getElementById('assetInfo');
+btn.onclick=async()=>{const file=fileInput.files?.[0];if(!file){status.textContent='Please select a video first.';return;}if(!file.type.startsWith('video/')){status.textContent='Please select a video file.';return;}
+btn.disabled=true;btn.textContent='Preparing upload…';status.textContent='Getting secure upload signature…';
+try{const sigRes=await fetch('/api/cloudinary-signature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});const sig=await sigRes.json();if(!sigRes.ok)throw new Error(sig.error||'Signature request failed');
+status.textContent='Uploading video to Cloudinary…';const form=new FormData();form.append('file',file);form.append('api_key',sig.apiKey);form.append('timestamp',sig.timestamp);form.append('folder',sig.folder);form.append('signature',sig.signature);
+const uploadRes=await fetch(`https://api.cloudinary.com/v1_1/${sig.cloudName}/video/upload`,{method:'POST',body:form});const result=await uploadRes.json();if(!uploadRes.ok)throw new Error(result.error?.message||'Upload failed');
+preview.src=result.secure_url;preview.hidden=false;assetInfo.textContent=`Uploaded: ${result.public_id} • ${(result.bytes/1024/1024).toFixed(1)} MB`;status.textContent='Upload complete. Video is safely stored and ready for the next AI analysis stage.';
+}catch(e){status.textContent='Upload error: '+e.message;}finally{btn.disabled=false;btn.textContent='Upload video';}};
+</script></body></html>
