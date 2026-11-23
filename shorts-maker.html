@@ -262,23 +262,35 @@ function validateClip(){
 }
 
 function playClip(){
- if(!validateClip())return;
+    if(!validateClip()) return;
 
- clearInterval(previewTimer);
-
- video.pause();
- video.currentTime=getStart();
-
- video.onseeked=()=>{
-  video.play();
-
-  previewTimer=setInterval(()=>{
-   if(video.currentTime>=getEnd()){
-    video.pause();
     clearInterval(previewTimer);
-   }
-  },100);
- };
+    video.pause();
+
+    const start = getStart();
+    const end = getEnd();
+
+    video.currentTime = start;
+
+    video.onseeked = async () => {
+        video.onseeked = null;
+
+        try {
+            await video.play();
+
+            const stopAtEnd = () => {
+                if(video.currentTime >= end){
+                    video.pause();
+                    video.removeEventListener("timeupdate", stopAtEnd);
+                }
+            };
+
+            video.addEventListener("timeupdate", stopAtEnd);
+        } catch(error) {
+            status("Preview playback failed: " + error.message);
+        }
+    };
+}
 }
 
 function stopClip(){
