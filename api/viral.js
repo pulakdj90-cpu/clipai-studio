@@ -1,4 +1,3 @@
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Use POST method" });
@@ -9,6 +8,7 @@ export default async function handler(req, res) {
   try {
     const { transcript, language = "Hindi" } = req.body || {};
 
+    // 1. Validate transcript
     if (typeof transcript !== "string" || transcript.trim().length < 30) {
       return res.status(400).json({
         error: "Please paste a longer transcript."
@@ -23,29 +23,27 @@ export default async function handler(req, res) {
       });
     }
 
-    // ----------------------------------------
-    // TIMESTAMP EXTRACTION (supports milliseconds)
-    // ----------------------------------------
+    // 2. Extract timestamps
     function extractTimestamps(text) {
       const regex =
-        /(?<!\d)(\d{1,2}):(\d{2}):(\d{2})(?:[.,]\d+)?(?!\d)|(?<!\d)(\d{1,2}):(\d{2})(?:[.,]\d+)?(?!\d)/g;
+        /\b(?:(\d{1,2}):)?(\d{1,2}):(\d{2})(?:[.,](\d+))?\b|\b(\d{1,2}):(\d{2})(?:[.,](\d+))?\b/g;
 
       const times = [];
 
       for (const match of text.matchAll(regex)) {
         let seconds;
 
-        // HH:MM:SS
-        if (match[1] !== undefined) {
+        if (match[3] !== undefined) {
+          // HH:MM:SS
           seconds =
-            Number(match[1]) * 3600 +
+            Number(match[1] || 0) * 3600 +
             Number(match[2]) * 60 +
             Number(match[3]);
         } else {
           // MM:SS
           seconds =
-            Number(match[4]) * 60 +
-            Number(match[5]);
+            Number(match[5]) * 60 +
+            Number(match[6]);
         }
 
         if (Number.isFinite(seconds)) {
@@ -60,44 +58,44 @@ export default async function handler(req, res) {
 
     if (timestamps.length < 2) {
       return res.status(400).json({
-        error: "Timestamped transcript required. Please paste transcript with timestamps such as 00:01:25."
+        error: "Timestamped transcript required. Please paste transcript containing timestamps such as 00:01:25."
       });
     }
 
     const transcriptDuration = Math.max(...timestamps);
 
-    // ----------------------------------------
-    // PROMPT
-    // ----------------------------------------
+    // 3. Build AI prompt
     const prompt = `
-You are a professional YouTube Shorts viral clip editor.
+You are an expert YouTube Shorts viral clip editor.
 
-Analyze the transcript and find the BEST viral moments.
+Analyze the transcript and select the BEST viral moments.
 
 LANGUAGE: ${language}
 
 RULES:
-- Return up to 5 clips.
-- Use ONLY timestamps from the provided timestamp list.
-- Never invent timestamps.
-- StartTime and EndTime MUST be exact values from the timestamp list.
-- Each clip must be between 20 and 60 seconds.
-- Clips must contain meaningful content.
-- Prefer strong hooks, emotional moments, surprising facts,
-  jokes, arguments, reactions, stories or useful advice.
-- Each clip should make sense independently.
-- Do not create overlapping clips.
-- Do not return duplicate clips.
-- Do not force 5 clips if fewer good clips exist.
-- Never use a timestamp that is not present in the list.
+- Return maximum 5 clips.
+- Use ONLY timestamps from the supplied timestamp list.
+- NEVER invent timestamps.
+- StartTime and EndTime must exactly match timestamps in the list.
+- Clip length must be between 20 and 60 seconds.
+- Select engaging moments independently.
+- Clips must not overlap.
+- Do not repeat the same moment.
+- Avoid boring introductions.
+- Prefer hooks, surprising facts, emotional moments, arguments,
+  jokes, reactions, stories, powerful advice, suspense or curiosity.
+- Each clip should make sense without watching the full video.
+- Do not invent quotes.
+- Return fewer clips if fewer good moments exist.
+- Return JSON only.
 
-AVAILABLE TIMESTAMPS:
+AVAILABLE TIMESTAMPS (SECONDS):
 ${timestamps.join(", ")}
 
 TRANSCRIPT:
 ${transcript}
 
-Return JSON ONLY in this structure:
+Return this JSON structure:
 
 {
   "clips": [
@@ -105,11 +103,11 @@ Return JSON ONLY in this structure:
       "title": "Catchy title",
       "startTime": 25,
       "endTime": 50,
-      "hook": "Strong opening hook",
+      "hook": "Opening hook",
       "startQuote": "Exact opening transcript words",
       "endQuote": "Exact ending transcript words",
       "viral": 90,
-      "reason": "Why this clip could perform well",
+      "reason": "Why this moment is engaging",
       "confidence": 85
     }
   ],
@@ -125,36 +123,30 @@ Return JSON ONLY in this structure:
 }
 `;
 
-    // ----------------------------------------
-    // MODEL FALLBACK
-    // ----------------------------------------
+    // 4. Model fallback list
     const models = [
       "gemini-3.5-flash-lite",
       "gemini-3.1-flash-lite"
     ];
 
-    let result = null;
+    let data = null;
     let modelUsed = "";
     let lastError = "";
 
+    // 5. Try models with retry
     for (const model of models) {
-      let modelSuccess = false;
+      let success = false;
 
-      // One retry for temporary server errors
       for (let attempt = 0; attempt < 2; attempt++) {
+        const controller = new AbortController();
+
+        const timeout = setTimeout(() => {
+          controller.abort();
+        }, 25000);
+
         try {
-          const controller = new AbortController();
-
-          const timeout = setTimeout(
-            () => controller.abort(),
-            25000
-          );
-
           const response = await fetch(
-            "https://generativelanguage.googleapis.com/v1beta/models/" +
-              model +
-              ":generateContent?key=" +
-              encodeURIComponent(apiKey),
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
             {
               method: "POST",
               headers: {
@@ -164,29 +156,27 @@ Return JSON ONLY in this structure:
               body: JSON.stringify({
                 contents: [
                   {
-                    parts: [{ text: prompt }]
+                    role: "user",
+                            parts: [{ text: prompt }]
                   }
                 ],
                 generationConfig: {
-                  temperature: 0.25,
+                  temperature: 0.2,
                   responseMimeType: "application/json"
                 }
               })
-            }
-          );
+          });
 
           clearTimeout(timeout);
 
-          const json = await response.json().catch(() => ({}));
+          const result = await response.json();
 
           if (!response.ok) {
-            const apiError =
-              json?.error?.message ||
-              "Gemini request failed (" + response.status + ")";
+            lastError =
+              result?.error?.message ||
+              `Gemini HTTP ${response.status}`;
 
-            lastError = apiError;
-
-            // Retry only temporary errors
+            // Retry temporary errors
             if (
               response.status === 429 ||
               response.status === 500 ||
@@ -195,23 +185,41 @@ Return JSON ONLY in this structure:
               response.status === 504
             ) {
               if (attempt === 0) {
-                await sleep(1000);
+                await sleep(1200);
                 continue;
               }
-
-              break;
             }
 
-            // Permanent error: try next model
+            // Try next model for permanent model errors
             break;
           }
 
-          result = json;
+          const responseText =
+            result?.candidates?.[0]?.content?.parts
+              ?.map(part => part.text || "")
+              .join("")
+              .trim();
+
+          if (!responseText) {
+            lastError = "Gemini returned an empty response.";
+            break;
+          }
+
+          data = parseAIJson(responseText);
+
+          if (!data || !Array.isArray(data.clips)) {
+            lastError = "Invalid AI response structure.";
+            data = null;
+            break;
+          }
+
           modelUsed = model;
-          modelSuccess = true;
+          success = true;
           break;
 
         } catch (error) {
+          clearTimeout(timeout);
+
           lastError =
             error.name === "AbortError"
               ? "Gemini request timed out."
@@ -223,70 +231,20 @@ Return JSON ONLY in this structure:
         }
       }
 
-      if (modelSuccess) break;
+      if (success) break;
     }
 
-    // ----------------------------------------
-    // IF ALL MODELS FAIL
-    // ----------------------------------------
-    if (!result) {
+    // 6. All models failed
+    if (!data) {
+      console.error("Gemini API failure:", lastError);
+
       return res.status(503).json({
-        error:
-          "AI is temporarily busy. Please try again in a few seconds.",
+        error: "AI service is temporarily unavailable. Please try again.",
         details: lastError
       });
     }
 
-    // ----------------------------------------
-    // READ RESPONSE
-    // ----------------------------------------
-    const responseText =
-      result?.candidates?.[0]?.content?.parts
-        ?.map(part => part.text || "")
-        .join("")
-        .trim();
-
-    if (!responseText) {
-      return res.status(502).json({
-        error: "AI returned an empty response. Please try again."
-      });
-    }
-
-    // ----------------------------------------
-    // CLEAN JSON
-    // ----------------------------------------
-    function parseAIJson(text) {
-      let cleaned = text
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-
-      try {
-        return JSON.parse(cleaned);
-      } catch (_) {
-        // Try extracting JSON object from response
-        const first = cleaned.indexOf("{");
-        const last = cleaned.lastIndexOf("}");
-
-        if (first !== -1 && last > first) {
-          return JSON.parse(cleaned.substring(first, last + 1));
-        }
-
-        throw new Error("AI response was not valid JSON.");
-      }
-    }
-
-    const data = parseAIJson(responseText);
-
-    if (!Array.isArray(data.clips)) {
-      return res.status(502).json({
-        error: "AI response format was invalid. Please try again."
-      });
-    }
-
-    // ----------------------------------------
-    // VALIDATE CLIPS
-    // ----------------------------------------
+    // 7. Validate clips
     const validClips = data.clips
       .filter(clip => {
         const start = Number(clip.startTime);
@@ -322,32 +280,27 @@ Return JSON ONLY in this structure:
         timingMode: "transcript"
       }));
 
-    // ----------------------------------------
-    // REMOVE DUPLICATES AND OVERLAPS
-    // ----------------------------------------
+    // 8. Remove duplicates and overlapping clips
+    validClips.sort((a, b) => b.viral - a.viral);
+
     const finalClips = [];
     const usedStarts = new Set();
-
-    // Best scores first
-    validClips.sort((a, b) => b.viral - a.viral);
 
     for (const clip of validClips) {
       if (usedStarts.has(clip.startTime)) continue;
 
-      const overlaps = finalClips.some(existing =>
+      const overlap = finalClips.some(existing =>
         clip.startTime < existing.endTime &&
         clip.endTime > existing.startTime
       );
 
-      if (overlaps) continue;
+      if (overlap) continue;
 
       usedStarts.add(clip.startTime);
       finalClips.push(clip);
     }
 
-    // ----------------------------------------
-    // SUCCESS
-    // ----------------------------------------
+    // 9. Success
     return res.status(200).json({
       success: true,
       modelUsed,
@@ -355,15 +308,18 @@ Return JSON ONLY in this structure:
       timestampCount: timestamps.length,
       transcriptDuration,
       clips: finalClips.slice(0, 5),
+
       titles: Array.isArray(data.titles)
         ? data.titles.slice(0, 10)
         : [],
+
       hashtags: Array.isArray(data.hashtags)
         ? data.hashtags.slice(0, 20)
         : [],
+
       warning:
         finalClips.length < 5
-          ? "Only clips with valid timestamps and 20-60 second duration were accepted."
+          ? "Only clips with valid timestamps and 20–60 second duration were accepted."
           : null
     });
 
@@ -371,9 +327,37 @@ Return JSON ONLY in this structure:
     console.error("Viral API error:", error);
 
     return res.status(500).json({
-      error:
-        "Viral analysis failed. Please try again.",
+      error: "Viral analysis failed.",
       details: error.message || String(error)
     });
   }
+}
+
+// 10. Safe JSON parser
+function parseAIJson(text) {
+  if (!text) return null;
+
+  let cleaned = String(text)
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  // First try direct JSON
+  try {
+    return JSON.parse(cleaned);
+  } catch (_) {}
+
+  // Extract JSON object if AI adds extra text
+  const first = cleaned.indexOf("{");
+  const last = cleaned.lastIndexOf("}");
+
+  if (first !== -1 && last > first) {
+    const json = cleaned.slice(first, last + 1);
+
+    try {
+      return JSON.parse(json);
+    } catch (_) {}
+  }
+
+  return null;
 }
