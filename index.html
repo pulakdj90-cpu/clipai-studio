@@ -449,10 +449,13 @@ async function analyzeClips() {
             : ""}
 
           ${clip.endQuote
-            ? `<div class="quote">End: ${escapeHtml(clip.endQuote)}</div>`
-            : ""}
+  ? `<div class="quote">End: ${escapeHtml(clip.endQuote)}</div>`
+  : ""}
 
-        </div>
+<a class="btn" style="display:block;text-align:center;text-decoration:none"
+   href="shorts-maker.html?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&title=${encodeURIComponent(clip.title || '')}">
+   🎬 Create Short
+</a>
       `;
     });
 
