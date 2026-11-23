@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClipAI - AI Clip Generator</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+margin:0;
+font-family:Arial,sans-serif;
+background:#090910;
+color:white;
+}
+header{
+padding:20px;
+border-bottom:1px solid #292936;
+background:#12121c;
+}
+header h2{margin:0;color:#c58aff}
+main{max-width:700px;margin:auto;padding:20px}
+.card{
+background:#171722;
+border:1px solid #343344;
+border-radius:18px;
+padding:20px;
+margin-bottom:18px;
+}
+h1{text-align:center;color:#d09aff}
+p{color:#aaa9b8;line-height:1.6}
+label{display:block;margin-top:15px;margin-bottom:8px}
+input,textarea,select{
+width:100%;
+padding:14px;
+background:#252530;
+color:white;
+border:1px solid #454552;
+border-radius:10px;
+font-size:16px;
+}
+button{
+width:100%;
+padding:15px;
+margin-top:15px;
+border:0;
+border-radius:12px;
+background:linear-gradient(90deg,#9333ea,#d45cff);
+color:white;
+font-size:16px;
+font-weight:bold;
+}
+.secondary{
+background:#292936;
+border:1px solid #444454;
+}
+#result{
+margin-top:15px;
+padding:15px;
+background:#222230;
+border-radius:12px;
+white-space:pre-wrap;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h2>✨ ClipAI Studio</h2>
+</header>
+
+<main>
+
+<h1>AI Clip Generator</h1>
+<p style="text-align:center">
+Turn long videos into engaging short clips.
+</p>
+
+<div class="card">
+
+<h3>🎬 Video Details</h3>
+
+<label>YouTube Video Link</label>
+<input id="url" placeholder="Paste YouTube video link">
+
+<label>Video Transcript</label>
+<textarea id="transcript" rows="8"
+placeholder="Paste your video transcript here..."></textarea>
+
+<label>Number of clips</label>
+<select id="count">
+<option>3</option>
+<option>5</option>
+<option>10</option>
+</select>
+
+<button onclick="generate()">🔥 Find Viral Moments</button>
+
+<div id="result">
+Your AI clip suggestions will appear here.
+</div>
+
+</div>
+
+</main>
+
+<script>
+async function generate(){
+
+const url=document.getElementById("url").value;
+const transcript=document.getElementById("transcript").value;
+const count=document.getElementById("count").value;
+const result=document.getElementById("result");
+
+if(!url || !transcript){
+result.innerText="Please enter YouTube link and transcript.";
+return;
+}
+
+result.innerText="🤖 AI is analyzing your transcript...";
+
+try{
+
+const response=await fetch("/api/viral",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({
+url:url,
+transcript:transcript,
+count:count
+})
+});
+
+const data=await response.json();
+
+result.innerText=JSON.stringify(data,null,2);
+
+}catch(error){
+
+result.innerText="Error: "+error.message;
+
+}
+
+}
+</script>
+
+</body>
+</html>
