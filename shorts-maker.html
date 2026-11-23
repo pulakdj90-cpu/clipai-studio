@@ -4,25 +4,53 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ClipAI AI Shorts Studio</title>
+<title>ClipAI Shorts Studio</title>
 
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#090910;color:#fff;font-family:Arial,sans-serif}
-header{text-align:center;padding:20px;background:#15111f;border-bottom:1px solid #333}
+body{
+ margin:0;background:#090910;color:#fff;
+ font-family:Arial,sans-serif
+}
+header{
+ text-align:center;padding:20px 12px;
+ background:#15111f;border-bottom:1px solid #333
+}
 header h1{margin:0;color:#d58aff}
 .container{max-width:650px;margin:auto;padding:16px}
-.card{background:#171720;padding:18px;border:1px solid #343440;border-radius:18px;margin-bottom:18px}
+.card{
+ background:#171720;padding:18px;border:1px solid #343440;
+ border-radius:18px;margin-bottom:18px
+}
 h2{margin-top:0;color:#d58aff}
-input,select,textarea{width:100%;padding:12px;margin-top:8px;background:#252530;color:white;border:1px solid #454550;border-radius:10px;font-size:16px}
+input,select,textarea{
+ width:100%;padding:12px;margin-top:8px;
+ background:#252530;color:white;border:1px solid #454550;
+ border-radius:10px;font-size:16px
+}
 label{display:block;margin-top:14px}
-button{width:100%;padding:14px;border:0;border-radius:12px;margin-top:12px;background:linear-gradient(90deg,#9333ea,#d45cff);color:white;font-size:16px;font-weight:bold}
+button{
+ width:100%;padding:15px;border:0;border-radius:12px;
+ margin-top:12px;background:linear-gradient(90deg,#9333ea,#d45cff);
+ color:white;font-size:16px;font-weight:bold
+}
 button.secondary{background:#292936;border:1px solid #454550}
 button.active{border:2px solid #d58aff;background:linear-gradient(90deg,#9333ea,#d45cff)}
 button:disabled{opacity:.5}
-.preview{width:270px;max-width:100%;aspect-ratio:9/16;background:#000;margin:15px auto;border-radius:18px;overflow:hidden;position:relative}
-.preview video{width:100%;height:100%;display:block;object-fit:cover;background:#000}
-.caption{position:absolute;left:5%;width:90%;text-align:center;font-size:22px;font-weight:900;color:white;text-shadow:2px 2px 4px #000,-2px -2px 4px #000;padding:8px;pointer-events:none}
+.preview{
+ width:270px;max-width:100%;aspect-ratio:9/16;background:#000;
+ margin:15px auto;border-radius:18px;overflow:hidden;position:relative
+}
+.preview video{
+ display:block;width:100%;height:100%;
+ object-fit:cover;object-position:center;background:#000
+}
+.caption{
+ position:absolute;left:5%;width:90%;text-align:center;
+ font-size:22px;font-weight:900;color:#fff;
+ text-shadow:2px 2px 4px #000,-2px -2px 4px #000;
+ padding:8px;pointer-events:none
+}
 .caption.bottom{bottom:9%}
 .caption.middle{top:45%;transform:translateY(-50%)}
 .caption.top{top:8%}
@@ -33,16 +61,21 @@ button:disabled{opacity:.5}
 .cropButtons{display:flex;gap:8px}
 .cropButtons button{flex:1}
 .cropControls input[type=range]{width:100%}
-#status{padding:12px;margin-top:12px;background:#222230;border-radius:10px;color:#d9a4ff;word-break:break-word}
-@media(max-width:400px){.timeRow{gap:6px}.card{padding:14px}}
+#status{
+ padding:12px;margin-top:12px;background:#222230;
+ border-radius:10px;color:#d9a4ff;word-break:break-word
+}
+@media(max-width:400px){
+ .timeRow{gap:6px}.card{padding:14px}
+}
 </style>
 </head>
 
 <body>
 
 <header>
-<h1>✨ ClipAI AI Shorts Studio</h1>
-<p>Smart Crop • AI Reframe • Face Tracking</p>
+<h1>✨ ClipAI Shorts Studio</h1>
+<p>Smart Crop • Auto Reframe • Shorts Maker</p>
 </header>
 
 <div class="container">
@@ -50,49 +83,52 @@ button:disabled{opacity:.5}
 <div class="card">
 <h2>1. Upload Video</h2>
 <input id="file" type="file" accept="video/*">
-<p class="small">Upload your video from your phone.</p>
+<p class="small">Select a video from your phone.</p>
 </div>
 
 <div class="card">
-<h2>2. AI Vertical Preview</h2>
+<h2>2. Vertical Preview</h2>
 
 <div class="preview">
-<video id="video" playsinline webkit-playsinline controls preload="metadata" muted></video>
+<video id="video" playsinline webkit-playsinline controls preload="metadata"></video>
 <div id="captionPreview" class="caption bottom"></div>
 </div>
 
+<p class="small">Preview uses the same crop settings as export.</p>
+
 <div class="cropControls">
 
-<label><b>AI Auto Reframe</b></label>
-<button id="trackingBtn" class="secondary" onclick="toggleTracking()">
-🎯 AI Auto Reframe: OFF
+<label><b>Auto Reframe</b></label>
+
+<button type="button" id="trackingBtn" class="secondary" onclick="toggleTracking()">
+🎯 AI Face Tracking: OFF
 </button>
 
 <p class="small">
-AI detects faces and adjusts the crop to keep the detected face in frame.
+Face tracking is optional. If AI fails to load, video preview still works.
 </p>
 
 <label><b>Crop Mode</b></label>
+
 <div class="cropButtons">
-<button id="fillBtn" class="active secondary" onclick="setCropMode('fill')">Fill Screen</button>
-<button id="fitBtn" class="secondary" onclick="setCropMode('fit')">Fit Original</button>
+<button type="button" id="fillBtn" class="secondary active" onclick="setCropMode('fill')">Fill Screen</button>
+<button type="button" id="fitBtn" class="secondary" onclick="setCropMode('fit')">Fit Original</button>
 </div>
 
 <label>Zoom: <span id="zoomValue">1.00x</span></label>
 <input id="cropZoom" type="range" min="1" max="2.5" step="0.05" value="1">
 
-<label>Manual Horizontal Position</label>
+<label>Horizontal Position</label>
 <input id="manualX" type="range" min="0" max="100" value="50">
 
-<p class="small">
-Manual Position: Left → Center → Right
-</p>
+<p class="small">Left ← Center → Right</p>
 
 </div>
 </div>
 
 <div class="card">
 <h2>3. Cut Your Clip</h2>
+
 <div class="timeRow">
 <div>
 <label>Start (seconds)</label>
@@ -130,171 +166,172 @@ Manual Position: Left → Center → Right
 <div class="card">
 <h2>5. Export Your Short</h2>
 <button id="exportBtn" onclick="exportVideo()">📥 Export Short (WebM)</button>
-<p class="small">Keep this page open until your export finishes.</p>
+<p class="small">Keep this page open until your video downloads.</p>
 <div id="status">Upload a video to begin.</div>
 </div>
 
 </div>
 
-<script type="module">
+<script>
+"use strict";
 
-import {FaceDetector,FilesetResolver}
-from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22";
+/* ELEMENTS */
+const video = document.getElementById("video");
+const fileInput = document.getElementById("file");
+const statusBox = document.getElementById("status");
+const exportBtn = document.getElementById("exportBtn");
 
-const video=document.getElementById("video");
-const fileInput=document.getElementById("file");
-const statusBox=document.getElementById("status");
-const exportBtn=document.getElementById("exportBtn");
+/* STATE */
+let videoURL = null;
+let exporting = false;
+let clipStopHandler = null;
 
-let videoURL=null;
-let exporting=false;
-let clipStopHandler=null;
+let cropMode = "fill";
+let cropZoom = 1;
+let manualX = 0.5;
 
-let cropMode="fill";
-let cropZoom=1;
-let trackingEnabled=false;
-let faceDetector=null;
-let trackedX=0.5;
-let detectedFace=false;
-let detectorBusy=false;
-let lastDetection=0;
+let trackingEnabled = false;
+let faceDetector = null;
+let trackedX = 0.5;
+let detectorBusy = false;
+let lastDetection = 0;
+let trackingRAF = null;
 
+/* STATUS */
 function status(text){
- statusBox.innerText=text;
+ statusBox.textContent = text;
 }
 
-/* FACE DETECTOR INITIALIZATION */
+/* TIME */
+function getStart(){
+ return Number(document.getElementById("start").value) || 0;
+}
+function getEnd(){
+ return Number(document.getElementById("end").value) || 0;
+}
+function formatTime(seconds){
+ if(!Number.isFinite(seconds))return "00:00";
+ const m=Math.floor(seconds/60);
+ const s=Math.floor(seconds%60);
+ return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+}
 
+/* AI FACE DETECTOR - OPTIONAL */
 async function initializeFaceDetector(){
 
  if(faceDetector)return faceDetector;
 
  try{
+  status("Loading optional AI face detector...");
 
-  status("Loading AI face detection...");
+  const mp = await import(
+   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22"
+  );
 
-  const vision=await FilesetResolver.forVisionTasks(
+  const vision = await mp.FilesetResolver.forVisionTasks(
    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm"
   );
 
-  faceDetector=await FaceDetector.createFromOptions(vision,{
+  faceDetector = await mp.FaceDetector.createFromOptions(vision,{
    baseOptions:{
     modelAssetPath:
-    "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
-   delegate:"CPU"
+    "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/face_detector.tflite",
+    delegate:"CPU"
    },
    runningMode:"VIDEO",
    minDetectionConfidence:0.45
   });
 
-  status("AI Face Detection Ready.");
-
+  status("AI face detection ready.");
   return faceDetector;
 
  }catch(error){
-
-  status("AI detector could not load. Check your internet.");
-  console.error(error);
-
+  console.error("Face detector unavailable:",error);
+  status("AI detector unavailable. Video editing still works.");
   return null;
  }
 }
 
-/* TRACK FACE */
-
+/* FACE DETECTION */
 async function detectFace(){
 
- if(!trackingEnabled||!faceDetector||!video.videoWidth)return;
- if(detectorBusy)return;
+ if(!trackingEnabled || !faceDetector || !video.videoWidth)return;
+ if(video.paused || video.ended || detectorBusy)return;
 
  const now=performance.now();
-
- if(now-lastDetection<120)return;
+ if(now-lastDetection<150)return;
 
  lastDetection=now;
  detectorBusy=true;
 
  try{
-
   const result=faceDetector.detectForVideo(video,now);
   const detections=result.detections||[];
 
   if(detections.length){
-
    let best=detections[0];
 
    for(const d of detections){
-    if(d.categories?.[0]?.score>best.categories?.[0]?.score){
-     best=d;
-    }
+    const score=d.categories?.[0]?.score||0;
+    const bestScore=best.categories?.[0]?.score||0;
+    if(score>bestScore)best=d;
    }
 
    const box=best.boundingBox;
 
-   if(box){
-
-    const center=box.originX+box.width/2;
-
-    trackedX=Math.max(0,Math.min(1,center));
-    detectedFace=true;
+   if(box && video.videoWidth){
+    /* Bounding box is in video pixel coordinates */
+    trackedX=(box.originX+box.width/2)/video.videoWidth;
+    trackedX=Math.max(0,Math.min(1,trackedX));
    }
-
-  }else{
-
-   detectedFace=false;
-
   }
 
- }catch(e){
-
-  console.log("Face tracking:",e);
-
+ }catch(error){
+  console.warn("Face detection error:",error);
  }finally{
-
   detectorBusy=false;
-
  }
 }
 
-/* AI TRACKING CONTROL */
+function trackingLoop(){
+ if(trackingEnabled && !video.paused && !video.ended){
+  detectFace();
+ }
+ trackingRAF=requestAnimationFrame(trackingLoop);
+}
+trackingRAF=requestAnimationFrame(trackingLoop);
 
+/* TRACKING BUTTON */
 async function toggleTracking(){
-
- trackingEnabled=!trackingEnabled;
 
  const button=document.getElementById("trackingBtn");
 
  if(trackingEnabled){
-
-  button.innerText="🎯 AI Auto Reframe: ON";
-  button.classList.add("active");
-
-  const detector=await initializeFaceDetector();
-
-  if(!detector){
-   trackingEnabled=false;
-   button.innerText="🎯 AI Auto Reframe: OFF";
-   button.classList.remove("active");
-   return;
-  }
-
-  status("AI tracking enabled. Play the video to track faces.");
-
- }else{
-
-  button.innerText="🎯 AI Auto Reframe: OFF";
+  trackingEnabled=false;
+  button.textContent="🎯 AI Face Tracking: OFF";
   button.classList.remove("active");
-
-  trackedX=0.5;
-
-  status("AI tracking disabled.");
-
+  status("Face tracking off.");
+  return;
  }
 
+ button.textContent="⏳ Loading AI...";
+ const detector=await initializeFaceDetector();
+
+ if(!detector){
+  trackingEnabled=false;
+  button.textContent="🎯 AI Face Tracking: OFF";
+  button.classList.remove("active");
+  return;
+ }
+
+ trackingEnabled=true;
+ button.textContent="🎯 AI Face Tracking: ON";
+ button.classList.add("active");
+
+ status("Tracking ready. Play video to follow the face.");
 }
 
 /* CROP SETTINGS */
-
 function setCropMode(mode){
 
  cropMode=mode==="fit"?"fit":"fill";
@@ -302,101 +339,130 @@ function setCropMode(mode){
  document.getElementById("fillBtn").classList.toggle("active",cropMode==="fill");
  document.getElementById("fitBtn").classList.toggle("active",cropMode==="fit");
 
- updatePreviewTransform();
-
+ updatePreview();
  status(cropMode==="fit"?"Fit Original selected.":"Fill Screen selected.");
 }
 
 document.getElementById("cropZoom").addEventListener("input",e=>{
-
  cropZoom=Number(e.target.value)||1;
-
- document.getElementById("zoomValue").innerText=cropZoom.toFixed(2)+"x";
-
- updatePreviewTransform();
-
+ document.getElementById("zoomValue").textContent=cropZoom.toFixed(2)+"x";
+ updatePreview();
 });
 
-document.getElementById("manualX").addEventListener("input",updatePreviewTransform);
+document.getElementById("manualX").addEventListener("input",e=>{
+ manualX=Number(e.target.value)/100;
+ updatePreview();
+});
 
-function updatePreviewTransform(){
+/* SHARED CROPPING */
+function getCrop(){
 
- video.style.objectFit=cropMode==="fit"?"contain":"cover";
- video.style.transform="scale("+cropZoom+")";
- video.style.objectPosition=document.getElementById("manualX").value+"% center";
+ const vw=video.videoWidth;
+ const vh=video.videoHeight;
+
+ if(!vw||!vh){
+  return null;
+ }
+
+ const targetRatio=9/16;
+ const videoRatio=vw/vh;
+
+ let sx=0,sy=0,sw=vw,sh=vh;
+
+ if(cropMode==="fit"){
+  return {fit:true,sx,sy,sw,sh};
+ }
+
+ if(videoRatio>targetRatio){
+  sh=vh;
+  sw=vh*targetRatio/cropZoom;
+
+  const center=trackingEnabled?trackedX:manualX;
+  sx=(vw-sw)*center;
+  sy=0;
+
+ }else{
+  sw=vw;
+  sh=vw/targetRatio/cropZoom;
+  sx=0;
+  sy=(vh-sh)/2;
+ }
+
+ sx=Math.max(0,Math.min(vw-sw,sx));
+ sy=Math.max(0,Math.min(vh-sh,sy));
+
+ return {fit:false,sx,sy,sw,sh};
 }
 
-/* VIDEO UPLOAD */
+/* PREVIEW */
+function updatePreview(){
 
+ if(!video.videoWidth)return;
+
+ if(cropMode==="fit"){
+  video.style.objectFit="contain";
+  video.style.objectPosition="center center";
+  video.style.transform="scale("+cropZoom+")";
+ }else{
+  video.style.objectFit="cover";
+  video.style.transform="scale("+cropZoom+")";
+
+  const position=trackingEnabled?trackedX*100:manualX*100;
+  video.style.objectPosition=position+"% center";
+ }
+}
+
+/* VIDEO UPLOAD - STABLE */
 fileInput.addEventListener("change",()=>{
 
- const file=fileInput.files[0];
+ const file=fileInput.files&&fileInput.files[0];
  if(!file)return;
 
  if(!file.type.startsWith("video/")){
-  status("Please select a video.");
+  status("Please select a valid video.");
   return;
  }
 
  stopClip();
 
- if(videoURL)URL.revokeObjectURL(videoURL);
+ if(videoURL){
+  URL.revokeObjectURL(videoURL);
+  videoURL=null;
+ }
 
  video.pause();
  video.removeAttribute("src");
  video.load();
 
+ status("Loading video...");
+
  videoURL=URL.createObjectURL(file);
  video.src=videoURL;
- video.load();
 
  video.onloadedmetadata=()=>{
 
+  const duration=video.duration;
+
   document.getElementById("start").value=0;
-  document.getElementById("end").value=Math.min(30,video.duration);
+  document.getElementById("end").value=Math.min(30,duration);
 
-  status("Video loaded! Duration: "+formatTime(video.duration));
+  video.currentTime=0;
+  updatePreview();
 
+  status("Video loaded successfully! Duration: "+formatTime(duration));
  };
 
- video.onerror=()=>status("Video failed to load.");
+ video.onerror=()=>{
+  status("Video could not load. Try MP4/H.264 video.");
+ };
 
+ video.load();
 });
 
-/* TRACKING LOOP */
-
-async function trackingLoop(){
-
- if(trackingEnabled&&video&&!video.paused&&!video.ended){
-  await detectFace();
- }
-
- requestAnimationFrame(trackingLoop);
-}
-
-requestAnimationFrame(trackingLoop);
-
-/* TIME */
-
-function getStart(){
- return Number(document.getElementById("start").value)||0;
-}
-
-function getEnd(){
- return Number(document.getElementById("end").value)||0;
-}
-
-function formatTime(s){
-
- if(!Number.isFinite(s))return "00:00";
-
- return String(Math.floor(s/60)).padStart(2,"0")+":"+
- String(Math.floor(s%60)).padStart(2,"0");
-}
-
+/* VALIDATION */
 function validateClip(){
 
- if(!video.src||!video.videoWidth){
+ if(!video.src || !video.videoWidth){
   alert("Please upload a video first.");
   return false;
  }
@@ -404,16 +470,16 @@ function validateClip(){
  const start=getStart();
  const end=getEnd();
 
- if(start<0||end<=start||end>video.duration){
-  alert("Enter valid Start and End times.");
+ if(!Number.isFinite(start)||!Number.isFinite(end)||
+    start<0||end<=start||end>video.duration){
+  alert("Please enter valid Start and End times.");
   return false;
  }
 
  return true;
 }
 
-/* CLIP PREVIEW */
-
+/* PREVIEW CLIP */
 async function playClip(){
 
  if(!validateClip())return;
@@ -424,43 +490,57 @@ async function playClip(){
  const end=getEnd();
 
  video.pause();
+ status("Preparing preview...");
 
  try{
-
-  video.currentTime=start;
-
-  await new Promise(resolve=>{
-   if(Math.abs(video.currentTime-start)<0.1)return resolve();
-   video.addEventListener("seeked",resolve,{once:true});
-  });
-
+  await seekVideo(start);
   await video.play();
 
   status("Playing selected clip.");
 
   clipStopHandler=()=>{
-
    if(video.currentTime>=end){
-
     video.pause();
-
     video.removeEventListener("timeupdate",clipStopHandler);
     clipStopHandler=null;
-
     status("Preview finished.");
    }
-
   };
 
   video.addEventListener("timeupdate",clipStopHandler);
 
- }catch(e){
-
-  status("Preview error: "+e.message);
-
+ }catch(error){
+  status("Preview error: "+error.message);
  }
 }
 
+/* SAFE SEEK */
+function seekVideo(time){
+
+ return new Promise((resolve,reject)=>{
+
+  if(Math.abs(video.currentTime-time)<0.08){
+   resolve();
+   return;
+  }
+
+  const timeout=setTimeout(()=>{
+   video.removeEventListener("seeked",onSeek);
+   reject(new Error("Video seek timed out"));
+  },10000);
+
+  function onSeek(){
+   clearTimeout(timeout);
+   video.removeEventListener("seeked",onSeek);
+   resolve();
+  }
+
+  video.addEventListener("seeked",onSeek);
+  video.currentTime=time;
+ });
+}
+
+/* STOP */
 function stopClip(){
 
  video.pause();
@@ -472,15 +552,13 @@ function stopClip(){
 }
 
 /* CAPTIONS */
-
 function updateCaption(){
 
+ const text=document.getElementById("captionText").value;
  const box=document.getElementById("captionPreview");
 
- box.innerText=document.getElementById("captionText").value;
-
+ box.textContent=text;
  box.className="caption "+document.getElementById("captionPosition").value;
-
  box.style.fontSize=document.getElementById("captionSize").value+"px";
 }
 
@@ -488,24 +566,24 @@ document.getElementById("captionText").addEventListener("input",updateCaption);
 document.getElementById("captionPosition").addEventListener("change",updateCaption);
 document.getElementById("captionSize").addEventListener("input",updateCaption);
 
-/* VIDEO DRAW / AUTO REFRAME */
-
+/* DRAW EXPORT FRAME - SAME CROP LOGIC */
 function drawVertical(ctx,canvas){
 
  if(!video.videoWidth)return;
 
  const vw=video.videoWidth;
  const vh=video.videoHeight;
- const targetRatio=9/16;
- const videoRatio=vw/vh;
 
  ctx.fillStyle="#000";
  ctx.fillRect(0,0,canvas.width,canvas.height);
 
- if(cropMode==="fit"){
+ const crop=getCrop();
+
+ if(!crop)return;
+
+ if(crop.fit){
 
   const scale=Math.min(canvas.width/vw,canvas.height/vh)*cropZoom;
-
   const dw=vw*scale;
   const dh=vh*scale;
 
@@ -513,116 +591,92 @@ function drawVertical(ctx,canvas){
 
  }else{
 
-  let sw,sh,sx,sy;
-
-  if(videoRatio>targetRatio){
-   sh=vh;
-   sw=vh*targetRatio/cropZoom;
-   sy=0;
-  }else{
-   sw=vw;
-   sh=vw/targetRatio/cropZoom;
-   sx=0;
-  }
-
-  /* Manual positioning */
-  const manual=Number(document.getElementById("manualX").value)/100;
-
-  /* Face Tracking takes priority over manual position */
-  const center=trackingEnabled&&detectedFace?trackedX:manual;
-
-  if(videoRatio>targetRatio){
-   sx=(vw-sw)*center;
-   sy=0;
-  }else{
-   sx=0;
-   sy=(vh-sh)/2;
-  }
-
-  sx=Math.max(0,Math.min(vw-sw,sx));
-
-  ctx.drawImage(video,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+  ctx.drawImage(
+   video,
+   crop.sx,crop.sy,crop.sw,crop.sh,
+   0,0,canvas.width,canvas.height
+  );
  }
 
- /* CAPTION RENDERING */
-
+ /* CAPTIONS */
  const text=document.getElementById("captionText").value.trim();
+ if(!text)return;
 
- if(text){
+ const position=document.getElementById("captionPosition").value;
+ const fontSize=Number(document.getElementById("captionSize").value)*2;
 
-  const position=document.getElementById("captionPosition").value;
-  const fontSize=Number(document.getElementById("captionSize").value)*2;
+ ctx.font="bold "+fontSize+"px Arial";
+ ctx.textAlign="center";
+ ctx.textBaseline="middle";
 
-  ctx.font="bold "+fontSize+"px Arial";
-  ctx.textAlign="center";
-  ctx.textBaseline="middle";
+ const maxWidth=canvas.width*.88;
+ const lines=[];
+ let line="";
 
-  const maxWidth=canvas.width*.88;
-  const lines=[];
-  let line="";
+ for(const word of text.split(/\s+/)){
+  const test=line?line+" "+word:word;
 
-  for(const word of text.split(/\s+/)){
-
-   const test=line?line+" "+word:word;
-
-   if(ctx.measureText(test).width>maxWidth&&line){
-    lines.push(line);
-    line=word;
-   }else{
-    line=test;
-   }
+  if(ctx.measureText(test).width>maxWidth&&line){
+   lines.push(line);
+   line=word;
+  }else{
+   line=test;
   }
+ }
 
-  if(line)lines.push(line);
+ if(line)lines.push(line);
 
-  const lineHeight=fontSize*1.2;
-  const blockHeight=lines.length*lineHeight;
+ const lineHeight=fontSize*1.2;
+ const blockHeight=lines.length*lineHeight;
 
-  let y=position==="top"
-   ?canvas.height*.12
-   :position==="middle"
-   ?canvas.height*.5-blockHeight/2
-   :canvas.height*.82-blockHeight/2;
+ let y=position==="top"
+  ?canvas.height*.12
+  :position==="middle"
+  ?canvas.height*.5-blockHeight/2
+  :canvas.height*.82-blockHeight/2;
 
-  ctx.lineWidth=fontSize*.15;
-  ctx.strokeStyle="#000";
-  ctx.fillStyle="#fff";
+ ctx.lineWidth=fontSize*.15;
+ ctx.strokeStyle="#000";
+ ctx.fillStyle="#fff";
 
-  for(const ln of lines){
-   ctx.strokeText(ln,canvas.width/2,y,maxWidth);
-   ctx.fillText(ln,canvas.width/2,y,maxWidth);
-   y+=lineHeight;
-  }
-
+ for(const ln of lines){
+  ctx.strokeText(ln,canvas.width/2,y,maxWidth);
+  ctx.fillText(ln,canvas.width/2,y,maxWidth);
+  y+=lineHeight;
  }
 }
 
-/* EXPORT */
-
+/* RECORDING SUPPORT */
 function supportedMime(){
 
  const types=[
- "video/webm;codecs=vp9,opus",
- "video/webm;codecs=vp8,opus",
- "video/webm"
+  "video/webm;codecs=vp9,opus",
+  "video/webm;codecs=vp8,opus",
+  "video/webm"
  ];
 
- return types.find(t=>MediaRecorder.isTypeSupported(t))||"";
+ for(const type of types){
+  if(MediaRecorder.isTypeSupported(type))return type;
+ }
+
+ return "";
 }
 
+/* EXPORT */
 async function exportVideo(){
 
- if(exporting||!validateClip())return;
+ if(exporting)return;
+ if(!validateClip())return;
 
  if(!window.MediaRecorder){
-  status("Video export is not supported.");
+  status("Video export is not supported in this browser.");
   return;
  }
 
  const mime=supportedMime();
 
  if(!mime){
-  status("WebM recording is unsupported.");
+  status("WebM recording is not supported.");
   return;
  }
 
@@ -639,36 +693,53 @@ async function exportVideo(){
  const ctx=canvas.getContext("2d");
  const stream=canvas.captureStream(30);
 
+ /* AUDIO */
  try{
-
-  const audioStream=video.captureStream();
-
-  audioStream.getAudioTracks().forEach(t=>stream.addTrack(t));
-
- }catch(e){}
+  const sourceStream=video.captureStream();
+  sourceStream.getAudioTracks().forEach(track=>{
+   stream.addTrack(track);
+  });
+ }catch(e){
+  console.warn("Audio capture unavailable",e);
+ }
 
  const chunks=[];
- const recorder=new MediaRecorder(stream,{mimeType:mime});
+ let recorder;
+
+ try{
+  recorder=new MediaRecorder(stream,{mimeType:mime});
+ }catch(error){
+  status("Recorder error: "+error.message);
+  stream.getTracks().forEach(t=>t.stop());
+  exporting=false;
+  exportBtn.disabled=false;
+  return;
+ }
 
  recorder.ondataavailable=e=>{
-  if(e.data.size)chunks.push(e.data);
+  if(e.data&&e.data.size)chunks.push(e.data);
+ };
+
+ recorder.onerror=()=>{
+  status("Recording error. Try a shorter video.");
  };
 
  recorder.onstop=()=>{
-
   const blob=new Blob(chunks,{type:mime});
   const url=URL.createObjectURL(blob);
 
   const a=document.createElement("a");
   a.href=url;
   a.download="clipai-short.webm";
+  document.body.appendChild(a);
   a.click();
+  a.remove();
 
   setTimeout(()=>URL.revokeObjectURL(url),60000);
 
   stream.getTracks().forEach(t=>t.stop());
 
-  status("Export finished! Download your Short.");
+  status("Export complete! Your video is downloaded.");
 
   exporting=false;
   exportBtn.disabled=false;
@@ -677,17 +748,12 @@ async function exportVideo(){
  try{
 
   video.pause();
-  video.currentTime=start;
-
-  await new Promise(resolve=>{
-   if(Math.abs(video.currentTime-start)<0.1)return resolve();
-   video.addEventListener("seeked",resolve,{once:true});
-  });
+  await seekVideo(start);
 
   recorder.start(250);
   await video.play();
 
-  status("Exporting... AI reframing is active.");
+  status("Exporting video... Please wait.");
 
   const render=()=>{
 
@@ -696,7 +762,6 @@ async function exportVideo(){
    drawVertical(ctx,canvas);
 
    if(video.currentTime>=end||video.ended){
-
     video.pause();
     if(recorder.state!=="inactive")recorder.stop();
     return;
@@ -709,17 +774,15 @@ async function exportVideo(){
 
  }catch(error){
 
-  if(recorder.state!=="inactive")recorder.stop();
+  if(recorder&&recorder.state!=="inactive")recorder.stop();
 
   status("Export failed: "+error.message);
 
   exporting=false;
   exportBtn.disabled=false;
-
  }
-
 }
-
 </script>
+
 </body>
 </html>
