@@ -220,7 +220,7 @@ fileInput.addEventListener("change", () => {
   video.load();
 
   videoURL = URL.createObjectURL(file);
-
+  video.src = videoURL;
   video.onloadedmetadata = () => {
     const duration = video.duration;
 
