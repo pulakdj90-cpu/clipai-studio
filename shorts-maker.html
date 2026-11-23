@@ -204,38 +204,47 @@ const aiTitle = clipParams.get("title");
   return true;
 }
 
-fileInput.addEventListener("change",()=>{
- const file=fileInput.files[0];
- if(!file)return;
+fileInput.addEventListener("change", () => {
+  const file = fileInput.files[0];
+  if (!file) return;
 
- if(!file.type.startsWith("video/")){
-  status("Please select a video file.");
-  return;
- }
+  if (!file.type.startsWith("video/")) {
+    status("Please select a video file.");
+    return;
+  }
 
- if(videoURL)URL.revokeObjectURL(videoURL);
+  if (videoURL) URL.revokeObjectURL(videoURL);
 
- videoURL=URL.createObjectURL(file);
- video.src=videoURL;
- video.load();
-video.onerror = () => status("Video format not supported. Try MP4 (H.264).");
- video.onloadedmetadata=()=>{
-  const duration=video.duration;
-  document.getElementById("start").value =
-    aiStart !== null ? Math.max(0, Number(aiStart)) : 0;
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
 
-document.getElementById("end").value =
-    aiEnd !== null ? Math.min(Number(aiEnd), duration) : Math.min(30, duration);
+  videoURL = URL.createObjectURL(file);
 
-if (aiTitle) {
-    document.title = aiTitle + " - ClipAI Shorts Studio";
-}
+  video.onloadedmetadata = () => {
+    const duration = video.duration;
 
-  status(
-   "Video loaded successfully! Duration: "+
-   formatTime(duration)
-  );
- };
+    document.getElementById("start").value =
+      aiStart !== null ? Math.max(0, Number(aiStart)) : 0;
+
+    document.getElementById("end").value =
+      aiEnd !== null
+        ? Math.min(Number(aiEnd), duration)
+        : Math.min(30, duration);
+
+    if (aiTitle) {
+      document.title = aiTitle + " - ClipAI Shorts Studio";
+    }
+
+    status("Video loaded! Duration: " + formatTime(duration));
+  };
+
+  video.onerror = () => {
+    status("Video failed to load. Try another MP4 video.");
+  };
+
+  video.src = videoURL;
+  video.load();
 });
 
 function formatTime(seconds){
