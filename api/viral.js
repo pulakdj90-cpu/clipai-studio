@@ -1,15 +1,15 @@
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Use POST method" });
   }
 
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
   try {
     const { transcript, language = "Hindi" } = req.body || {};
 
-    if (
-      typeof transcript !== "string" ||
-      transcript.trim().length < 30
-    ) {
+    if (typeof transcript !== "string" || transcript.trim().length < 30) {
       return res.status(400).json({
         error: "Please paste a longer transcript."
       });
@@ -19,26 +19,30 @@ export default async function handler(req, res) {
 
     if (!apiKey) {
       return res.status(500).json({
-        error: "Gemini API key missing"
+        error: "GEMINI_API_KEY is missing in Vercel Environment Variables."
       });
     }
 
-    // Extract actual timestamps from transcript
+    // ----------------------------------------
+    // TIMESTAMP EXTRACTION (supports milliseconds)
+    // ----------------------------------------
     function extractTimestamps(text) {
       const regex =
-        /\b(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\b|\b(\d{1,2}):(\d{2})\b/g;
+        /(?<!\d)(\d{1,2}):(\d{2}):(\d{2})(?:[.,]\d+)?(?!\d)|(?<!\d)(\d{1,2}):(\d{2})(?:[.,]\d+)?(?!\d)/g;
 
       const times = [];
 
       for (const match of text.matchAll(regex)) {
         let seconds;
 
-        if (match[3] !== undefined) {
+        // HH:MM:SS
+        if (match[1] !== undefined) {
           seconds =
-            Number(match[1] || 0) * 3600 +
+            Number(match[1]) * 3600 +
             Number(match[2]) * 60 +
             Number(match[3]);
         } else {
+          // MM:SS
           seconds =
             Number(match[4]) * 60 +
             Number(match[5]);
@@ -53,70 +57,66 @@ export default async function handler(req, res) {
     }
 
     const timestamps = extractTimestamps(transcript);
-    const hasTimestamps = timestamps.length >= 2;
-    const transcriptDuration = hasTimestamps
-      ? Math.max(...timestamps)
-      : null;
 
-    // Require real timestamps for reliable clip timing
-    if (!hasTimestamps) {
+    if (timestamps.length < 2) {
       return res.status(400).json({
-        error:
-          "Transcript timestamps not found. Please paste YouTube transcript with timestamps."
+        error: "Timestamped transcript required. Please paste transcript with timestamps such as 00:01:25."
       });
     }
 
-    const prompt = `
-You are an expert YouTube Shorts viral clip editor.
+    const transcriptDuration = Math.max(...timestamps);
 
-Analyze this transcript and find the 5 BEST viral moments.
+    // ----------------------------------------
+    // PROMPT
+    // ----------------------------------------
+    const prompt = `
+You are a professional YouTube Shorts viral clip editor.
+
+Analyze the transcript and find the BEST viral moments.
 
 LANGUAGE: ${language}
 
-STRICT TIMING RULES:
-- Use ONLY timestamps found in the transcript.
+RULES:
+- Return up to 5 clips.
+- Use ONLY timestamps from the provided timestamp list.
 - Never invent timestamps.
-- Every clip must start and end at real transcript timestamps.
-- Prefer clips between 20 and 60 seconds.
-- Never return clips shorter than 20 seconds.
-- Never return clips longer than 60 seconds.
-- Clips must be different moments.
-- Do not repeat the same start time.
-- Do not create overlapping clips unless absolutely necessary.
-- Never use 00:00 unless the transcript actually has timestamp 00:00.
-- Choose moments with jokes, reactions, surprising facts, suspense,
-  emotional moments, strong hooks or interesting conversations.
-- Select meaningful moments, not random sections.
-- If fewer than 5 reliable clips exist, return only the clips that
-  meet the rules.
-- Do not fake timestamps to fill 5 clips.
+- StartTime and EndTime MUST be exact values from the timestamp list.
+- Each clip must be between 20 and 60 seconds.
+- Clips must contain meaningful content.
+- Prefer strong hooks, emotional moments, surprising facts,
+  jokes, arguments, reactions, stories or useful advice.
+- Each clip should make sense independently.
+- Do not create overlapping clips.
+- Do not return duplicate clips.
+- Do not force 5 clips if fewer good clips exist.
+- Never use a timestamp that is not present in the list.
 
-AVAILABLE REAL TIMESTAMPS IN SECONDS:
+AVAILABLE TIMESTAMPS:
 ${timestamps.join(", ")}
 
 TRANSCRIPT:
 ${transcript}
 
-Return valid JSON ONLY in this exact format:
+Return JSON ONLY in this structure:
 
 {
   "clips": [
     {
-      "title": "Catchy clip title",
+      "title": "Catchy title",
       "startTime": 25,
       "endTime": 50,
-      "hook": "Opening hook",
-      "startQuote": "Exact transcript beginning",
-      "endQuote": "Exact transcript ending",
+      "hook": "Strong opening hook",
+      "startQuote": "Exact opening transcript words",
+      "endQuote": "Exact ending transcript words",
       "viral": 90,
-      "reason": "Why viewers will watch",
+      "reason": "Why this clip could perform well",
       "confidence": 85
     }
   ],
   "titles": [
-    "YouTube title 1",
-    "YouTube title 2",
-    "YouTube title 3"
+    "Shorts title 1",
+    "Shorts title 2",
+    "Shorts title 3"
   ],
   "hashtags": [
     "#shorts",
@@ -125,60 +125,170 @@ Return valid JSON ONLY in this exact format:
 }
 `;
 
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" +
-        encodeURIComponent(apiKey),
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
+    // ----------------------------------------
+    // MODEL FALLBACK
+    // ----------------------------------------
+    const models = [
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite"
+    ];
+
+    let result = null;
+    let modelUsed = "";
+    let lastError = "";
+
+    for (const model of models) {
+      let modelSuccess = false;
+
+      // One retry for temporary server errors
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const controller = new AbortController();
+
+          const timeout = setTimeout(
+            () => controller.abort(),
+            25000
+          );
+
+          const response = await fetch(
+            "https://generativelanguage.googleapis.com/v1beta/models/" +
+              model +
+              ":generateContent?key=" +
+              encodeURIComponent(apiKey),
             {
-              parts: [{ text: prompt }]
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              signal: controller.signal,
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [{ text: prompt }]
+                  }
+                ],
+                generationConfig: {
+                  temperature: 0.25,
+                  responseMimeType: "application/json"
+                }
+              })
             }
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: "application/json"
+          );
+
+          clearTimeout(timeout);
+
+          const json = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            const apiError =
+              json?.error?.message ||
+              "Gemini request failed (" + response.status + ")";
+
+            lastError = apiError;
+
+            // Retry only temporary errors
+            if (
+              response.status === 429 ||
+              response.status === 500 ||
+              response.status === 502 ||
+              response.status === 503 ||
+              response.status === 504
+            ) {
+              if (attempt === 0) {
+                await sleep(1000);
+                continue;
+              }
+
+              break;
+            }
+
+            // Permanent error: try next model
+            break;
           }
-        })
+
+          result = json;
+          modelUsed = model;
+          modelSuccess = true;
+          break;
+
+        } catch (error) {
+          lastError =
+            error.name === "AbortError"
+              ? "Gemini request timed out."
+              : error.message || "Network request failed.";
+
+          if (attempt === 0) {
+            await sleep(1000);
+          }
+        }
       }
-    );
 
-    const result = await response.json();
+      if (modelSuccess) break;
+    }
 
-    if (!response.ok) {
-      return res.status(response.status).json({
+    // ----------------------------------------
+    // IF ALL MODELS FAIL
+    // ----------------------------------------
+    if (!result) {
+      return res.status(503).json({
         error:
-          result?.error?.message ||
-          "Gemini API request failed"
+          "AI is temporarily busy. Please try again in a few seconds.",
+        details: lastError
       });
     }
 
+    // ----------------------------------------
+    // READ RESPONSE
+    // ----------------------------------------
     const responseText =
-      result?.candidates?.[0]?.content?.parts?.[0]?.text;
+      result?.candidates?.[0]?.content?.parts
+        ?.map(part => part.text || "")
+        .join("")
+        .trim();
 
     if (!responseText) {
-      throw new Error("Empty Gemini response");
+      return res.status(502).json({
+        error: "AI returned an empty response. Please try again."
+      });
     }
 
-    // Clean JSON response
-    const cleaned = responseText
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .trim();
+    // ----------------------------------------
+    // CLEAN JSON
+    // ----------------------------------------
+    function parseAIJson(text) {
+      let cleaned = text
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
 
-    const data = JSON.parse(cleaned);
+      try {
+        return JSON.parse(cleaned);
+      } catch (_) {
+        // Try extracting JSON object from response
+        const first = cleaned.indexOf("{");
+        const last = cleaned.lastIndexOf("}");
+
+        if (first !== -1 && last > first) {
+          return JSON.parse(cleaned.substring(first, last + 1));
+        }
+
+        throw new Error("AI response was not valid JSON.");
+      }
+    }
+
+    const data = parseAIJson(responseText);
 
     if (!Array.isArray(data.clips)) {
-      throw new Error("Invalid clips response");
+      return res.status(502).json({
+        error: "AI response format was invalid. Please try again."
+      });
     }
 
-    // Validate clips using transcript timestamps
+    // ----------------------------------------
+    // VALIDATE CLIPS
+    // ----------------------------------------
     const validClips = data.clips
-      .filter((clip) => {
+      .filter(clip => {
         const start = Number(clip.startTime);
         const end = Number(clip.endTime);
 
@@ -193,7 +303,7 @@ Return valid JSON ONLY in this exact format:
           timestamps.includes(end)
         );
       })
-      .map((clip) => ({
+      .map(clip => ({
         title: String(clip.title || "Viral Moment"),
         startTime: Number(clip.startTime),
         endTime: Number(clip.endTime),
@@ -212,17 +322,21 @@ Return valid JSON ONLY in this exact format:
         timingMode: "transcript"
       }));
 
-    // Remove duplicate and overlapping clips
+    // ----------------------------------------
+    // REMOVE DUPLICATES AND OVERLAPS
+    // ----------------------------------------
     const finalClips = [];
     const usedStarts = new Set();
+
+    // Best scores first
+    validClips.sort((a, b) => b.viral - a.viral);
 
     for (const clip of validClips) {
       if (usedStarts.has(clip.startTime)) continue;
 
-      const overlaps = finalClips.some(
-        (existing) =>
-          clip.startTime < existing.endTime &&
-          clip.endTime > existing.startTime
+      const overlaps = finalClips.some(existing =>
+        clip.startTime < existing.endTime &&
+        clip.endTime > existing.startTime
       );
 
       if (overlaps) continue;
@@ -231,29 +345,35 @@ Return valid JSON ONLY in this exact format:
       finalClips.push(clip);
     }
 
+    // ----------------------------------------
+    // SUCCESS
+    // ----------------------------------------
     return res.status(200).json({
       success: true,
-      modelUsed: "gemini-3.5-flash-lite",
+      modelUsed,
       timingMode: "transcript-based",
       timestampCount: timestamps.length,
-      transcriptDuration: transcriptDuration,
+      transcriptDuration,
       clips: finalClips.slice(0, 5),
       titles: Array.isArray(data.titles)
-        ? data.titles
+        ? data.titles.slice(0, 10)
         : [],
       hashtags: Array.isArray(data.hashtags)
-        ? data.hashtags
+        ? data.hashtags.slice(0, 20)
         : [],
       warning:
         finalClips.length < 5
-          ? "Only clips with valid transcript timestamps and 20-60 second duration were accepted."
+          ? "Only clips with valid timestamps and 20-60 second duration were accepted."
           : null
     });
+
   } catch (error) {
     console.error("Viral API error:", error);
 
     return res.status(500).json({
-      error: error.message || "Viral analysis failed."
+      error:
+        "Viral analysis failed. Please try again.",
+      details: error.message || String(error)
     });
   }
 }
