@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ClipAI Shorts Studio</title>
 
 <style>
@@ -80,11 +80,11 @@ button:disabled{opacity:.5}
 }
 
 .preview video{
+ display:block;
  width:100%;
  height:100%;
- object-fit:cover;
+ object-fit:contain;
  background:#000;
- display:block;
 }
 
 .caption{
@@ -119,41 +119,12 @@ button:disabled{opacity:.5}
  line-height:1.5;
 }
 
-.timeRow{
- display:flex;
- gap:10px;
-}
+.timeRow{display:flex;gap:10px}
+.timeRow div{flex:1;min-width:0}
 
-.timeRow div{flex:1}
-
-.word-pop-caption{
- position:absolute;
- bottom:12%;
- left:5%;
- width:90%;
- text-align:center;
- z-index:999;
- pointer-events:none;
- font-size:30px;
- font-weight:900;
- color:white;
- text-shadow:3px 3px 8px black;
-}
-
-.word-pop-caption span{
- display:inline-block;
- margin:3px;
- animation:popWord .25s ease;
-}
-
-.word-pop-caption .highlight{
- color:#ffd400;
- transform:scale(1.15);
-}
-
-@keyframes popWord{
- from{opacity:0;transform:translateY(12px) scale(.7)}
- to{opacity:1;transform:translateY(0) scale(1)}
+@media(max-width:400px){
+ .timeRow{gap:6px}
+ .card{padding:14px}
 }
 </style>
 </head>
@@ -177,7 +148,15 @@ button:disabled{opacity:.5}
 <h2>2. Vertical Preview</h2>
 
 <div class="preview">
-<video id="video" playsinline controls preload="metadata"></video>
+<video
+ id="video"
+ playsinline
+ webkit-playsinline
+ controls
+ preload="metadata"
+ muted
+></video>
+
 <div id="captionPreview" class="caption bottom"></div>
 </div>
 
@@ -247,51 +226,48 @@ const exportBtn = document.getElementById("exportBtn");
 let videoURL = null;
 let previewTimer = null;
 let exporting = false;
-let stopPreviewListener = null;
+let clipStopHandler = null;
 
 /* STATUS */
-
 function status(text){
  statusBox.innerText = text;
 }
 
 /* CLIP TIME */
-
 function getStart(){
- return Number(document.getElementById("start").value)||0;
+ return Number(document.getElementById("start").value) || 0;
 }
 
 function getEnd(){
- return Number(document.getElementById("end").value)||0;
+ return Number(document.getElementById("end").value) || 0;
 }
 
 /* AI TIMING IMPORT */
-
 const clipParams = new URLSearchParams(window.location.search);
 const aiStart = clipParams.get("start");
 const aiEnd = clipParams.get("end");
 const aiTitle = clipParams.get("title");
 
-function toSeconds(value){
- if(typeof value === "number") return value;
-
- const parts = String(value).trim().split(":").map(Number);
-
- if(parts.length === 2){
-  return parts[0]*60 + parts[1];
- }
-
- if(parts.length === 3){
-  return parts[0]*3600 + parts[1]*60 + parts[2];
- }
-
- return Number(value);
-}
-
 function importAIClipTiming(startTime,endTime){
 
- const start = toSeconds(startTime);
- const end = toSeconds(endTime);
+ function toSeconds(value){
+  if(typeof value==="number") return value;
+
+  const parts=String(value).trim().split(":").map(Number);
+
+  if(parts.length===2){
+   return parts[0]*60+parts[1];
+  }
+
+  if(parts.length===3){
+   return parts[0]*3600+parts[1]*60+parts[2];
+  }
+
+  return Number(value);
+ }
+
+ const start=toSeconds(startTime);
+ const end=toSeconds(endTime);
 
  if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start){
   status("Invalid AI clip timing.");
@@ -302,14 +278,11 @@ function importAIClipTiming(startTime,endTime){
  document.getElementById("end").value=end;
 
  status("AI clip timing imported: "+start+"s - "+end+"s");
-
  return true;
 }
 
 /* VIDEO UPLOAD */
-
 fileInput.addEventListener("change",()=>{
-
  const file=fileInput.files[0];
  if(!file)return;
 
@@ -318,53 +291,51 @@ fileInput.addEventListener("change",()=>{
   return;
  }
 
- status("Loading video...");
+ stopClip();
 
  if(videoURL){
   URL.revokeObjectURL(videoURL);
+  videoURL=null;
  }
 
  video.pause();
-
  video.removeAttribute("src");
  video.load();
 
+ status("Loading video...");
+
  videoURL=URL.createObjectURL(file);
+ video.src=videoURL;
+ video.load();
 
  video.onloadedmetadata=()=>{
-
   const duration=video.duration;
 
-  let startValue=0;
-  let endValue=Math.min(30,duration);
+  let start=0;
+  let end=Math.min(30,duration);
 
   if(aiStart!==null){
    const parsedStart=Number(aiStart);
-
    if(Number.isFinite(parsedStart)){
-    startValue=Math.min(Math.max(0,parsedStart),duration);
+    start=Math.max(0,Math.min(parsedStart,duration));
    }
   }
 
   if(aiEnd!==null){
    const parsedEnd=Number(aiEnd);
-
    if(Number.isFinite(parsedEnd)){
-    endValue=Math.min(Math.max(0,parsedEnd),duration);
+    end=Math.max(start,Math.min(parsedEnd,duration));
    }
   }
 
-  if(endValue<=startValue){
-   startValue=0;
-   endValue=Math.min(30,duration);
-  }
-
-  document.getElementById("start").value=startValue;
-  document.getElementById("end").value=endValue;
+  document.getElementById("start").value=start;
+  document.getElementById("end").value=end;
 
   if(aiTitle){
    document.title=aiTitle+" - ClipAI Shorts Studio";
   }
+
+  video.currentTime=0;
 
   status("Video loaded successfully! Duration: "+formatTime(duration));
  };
@@ -372,26 +343,21 @@ fileInput.addEventListener("change",()=>{
  video.onerror=()=>{
   status("Video failed to load. Try another MP4 video.");
  };
-
- video.src=videoURL;
- video.load();
-
 });
 
 /* TIME FORMAT */
-
 function formatTime(seconds){
+ if(!Number.isFinite(seconds))return "00:00";
 
  const m=Math.floor(seconds/60);
  const s=Math.floor(seconds%60);
 
- return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+ return String(m).padStart(2,"0")+":"+
+        String(s).padStart(2,"0");
 }
 
-/* VALIDATE */
-
+/* VALIDATION */
 function validateClip(){
-
  if(!video.src||!video.videoWidth){
   alert("Please upload a video first.");
   return false;
@@ -414,116 +380,117 @@ function validateClip(){
  return true;
 }
 
-/* PLAY CLIP */
-
-function playClip(){
-
+/* PREVIEW SELECTED CLIP */
+async function playClip(){
  if(!validateClip())return;
 
- video.pause();
-
- if(stopPreviewListener){
-  video.removeEventListener("timeupdate",stopPreviewListener);
-  stopPreviewListener=null;
- }
+ stopClip();
 
  const start=getStart();
  const end=getEnd();
 
- video.currentTime=start;
+ video.pause();
 
- video.onseeked=async()=>{
+ status("Preparing clip preview...");
 
-  video.onseeked=null;
+ try{
+  video.currentTime=start;
 
-  try{
+  await new Promise((resolve,reject)=>{
+   if(Math.abs(video.currentTime-start)<0.1){
+    resolve();
+    return;
+   }
 
-   await video.play();
+   const timeout=setTimeout(()=>{
+    video.removeEventListener("seeked",onSeek);
+    reject(new Error("Seek timeout"));
+   },10000);
 
-   stopPreviewListener=()=>{
+   function onSeek(){
+    clearTimeout(timeout);
+    video.removeEventListener("seeked",onSeek);
+    resolve();
+   }
 
-    if(video.currentTime>=end){
+   video.addEventListener("seeked",onSeek);
+  });
 
-     video.pause();
+  await video.play();
 
-     video.removeEventListener("timeupdate",stopPreviewListener);
-     stopPreviewListener=null;
-    }
-   };
+  status("Playing selected clip: "+formatTime(start)+" - "+formatTime(end));
 
-   video.addEventListener("timeupdate",stopPreviewListener);
+  clipStopHandler=()=>{
+   if(video.currentTime>=end){
+    video.pause();
+    video.removeEventListener("timeupdate",clipStopHandler);
+    clipStopHandler=null;
+    status("Clip preview finished.");
+   }
+  };
 
-  }catch(error){
+  video.addEventListener("timeupdate",clipStopHandler);
 
-   status("Preview playback failed: "+error.message);
-
-  }
- };
+ }catch(error){
+  status("Preview error: "+error.message);
+ }
 }
 
 /* STOP */
-
 function stopClip(){
-
  video.pause();
 
- if(stopPreviewListener){
-  video.removeEventListener("timeupdate",stopPreviewListener);
-  stopPreviewListener=null;
+ if(clipStopHandler){
+  video.removeEventListener("timeupdate",clipStopHandler);
+  clipStopHandler=null;
+ }
+
+ if(previewTimer){
+  clearInterval(previewTimer);
+  previewTimer=null;
  }
 }
 
 /* CAPTIONS */
-
 function updateCaption(){
-
  const text=document.getElementById("captionText").value;
  const box=document.getElementById("captionPreview");
 
  box.innerText=text;
-
  box.className="caption "+document.getElementById("captionPosition").value;
-
  box.style.fontSize=document.getElementById("captionSize").value+"px";
-
- status("Caption updated.");
 }
 
 document.getElementById("captionText").addEventListener("input",updateCaption);
 document.getElementById("captionPosition").addEventListener("change",updateCaption);
 document.getElementById("captionSize").addEventListener("input",updateCaption);
 
-/* VERTICAL VIDEO DRAWING */
-
+/* DRAW VERTICAL VIDEO */
 function drawVertical(ctx,canvas){
-
  if(!video.videoWidth||!video.videoHeight)return;
 
  const vw=video.videoWidth;
  const vh=video.videoHeight;
-
  const targetRatio=9/16;
  const videoRatio=vw/vh;
 
  let sx=0,sy=0,sw=vw,sh=vh;
 
  if(videoRatio>targetRatio){
-
   sw=vh*targetRatio;
   sx=(vw-sw)/2;
-
  }else{
-
   sh=vw/targetRatio;
   sy=(vh-sh)/2;
  }
+
+ ctx.clearRect(0,0,canvas.width,canvas.height);
 
  ctx.drawImage(video,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
 
  const text=document.getElementById("captionText").value.trim();
 
  if(text){
-
   const position=document.getElementById("captionPosition").value;
   const fontSize=Number(document.getElementById("captionSize").value)*2;
 
@@ -532,24 +499,18 @@ function drawVertical(ctx,canvas){
   ctx.textBaseline="middle";
 
   const maxWidth=canvas.width*.88;
-
   const words=text.split(/\s+/);
   const lines=[];
   let line="";
 
   for(const word of words){
-
    const test=line?line+" "+word:word;
 
    if(ctx.measureText(test).width>maxWidth&&line){
-
     lines.push(line);
     line=word;
-
    }else{
-
     line=test;
-
    }
   }
 
@@ -573,19 +534,15 @@ function drawVertical(ctx,canvas){
   ctx.fillStyle="#fff";
 
   for(const ln of lines){
-
    ctx.strokeText(ln,canvas.width/2,y,maxWidth);
    ctx.fillText(ln,canvas.width/2,y,maxWidth);
-
    y+=lineHeight;
   }
  }
 }
 
-/* RECORDING MIME */
-
+/* RECORDING SUPPORT */
 function supportedMime(){
-
  const types=[
   "video/webm;codecs=vp9,opus",
   "video/webm;codecs=vp8,opus",
@@ -593,19 +550,14 @@ function supportedMime(){
  ];
 
  for(const type of types){
-
-  if(MediaRecorder.isTypeSupported(type)){
-   return type;
-  }
+  if(MediaRecorder.isTypeSupported(type))return type;
  }
 
  return "";
 }
 
 /* EXPORT */
-
 async function exportVideo(){
-
  if(exporting)return;
  if(!validateClip())return;
 
@@ -628,75 +580,55 @@ async function exportVideo(){
  const end=getEnd();
 
  const canvas=document.createElement("canvas");
-
  canvas.width=720;
  canvas.height=1280;
 
  const ctx=canvas.getContext("2d");
-
  const canvasStream=canvas.captureStream(30);
 
  let combinedStream=canvasStream;
 
  /* AUDIO */
-
  try{
-
   if(video.captureStream){
-
    const sourceStream=video.captureStream();
-
    sourceStream.getAudioTracks().forEach(track=>{
     combinedStream.addTrack(track);
    });
   }
-
  }catch(e){
-
   console.log("Audio capture unavailable",e);
-
  }
 
  let recorder;
  let chunks=[];
 
  try{
-
   recorder=new MediaRecorder(combinedStream,{mimeType:mime});
-
  }catch(e){
-
   status("Could not start recording: "+e.message);
-
   exporting=false;
   exportBtn.disabled=false;
-
   return;
  }
 
- recorder.ondataavailable=(event)=>{
-
+ recorder.ondataavailable=event=>{
   if(event.data&&event.data.size>0){
    chunks.push(event.data);
   }
  };
 
  recorder.onerror=()=>{
-
   status("Recording error. Try a shorter clip.");
-
  };
 
  recorder.onstop=()=>{
-
   const blob=new Blob(chunks,{type:mime});
   const url=URL.createObjectURL(blob);
 
   const a=document.createElement("a");
-
   a.href=url;
   a.download="clipai-short.webm";
-
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -712,45 +644,37 @@ async function exportVideo(){
  };
 
  try{
-
   video.pause();
   video.currentTime=start;
 
   await new Promise((resolve,reject)=>{
-
    const timeout=setTimeout(()=>{
     reject(new Error("Video seek timed out"));
    },10000);
 
    video.onseeked=()=>{
-
     clearTimeout(timeout);
     video.onseeked=null;
     resolve();
-
    };
   });
 
   recorder.start(250);
-
   await video.play();
 
   status("Exporting video... Please wait.");
 
   const render=()=>{
-
    if(!exporting)return;
 
    drawVertical(ctx,canvas);
 
    if(video.currentTime>=end||video.ended){
-
     video.pause();
 
     if(recorder.state!=="inactive"){
      recorder.stop();
     }
-
     return;
    }
 
@@ -760,7 +684,6 @@ async function exportVideo(){
   requestAnimationFrame(render);
 
  }catch(error){
-
   if(recorder&&recorder.state!=="inactive"){
    recorder.stop();
   }
@@ -770,35 +693,6 @@ async function exportVideo(){
   exporting=false;
   exportBtn.disabled=false;
  }
-}
-
-/* ANIMATED CAPTION */
-
-function showAnimatedCaption(text,container){
-
- if(!container)return;
-
- const words=text.trim().split(/\s+/);
- let i=0;
-
- function next(){
-
-  if(i>=words.length)return;
-
-  container.innerHTML="";
-
-  const span=document.createElement("span");
-  span.className="highlight";
-  span.textContent=words[i];
-
-  container.appendChild(span);
-
-  i++;
-
-  setTimeout(next,350);
- }
-
- next();
 }
 </script>
 
