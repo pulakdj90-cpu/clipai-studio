@@ -225,7 +225,7 @@ async function initializeFaceDetector(){
   status("Loading optional AI face detector...");
 
   const mp = await import(
-   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22"
+ "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs"
   );
 
   const vision = await mp.FilesetResolver.forVisionTasks(
@@ -235,7 +235,7 @@ async function initializeFaceDetector(){
   faceDetector = await mp.FaceDetector.createFromOptions(vision,{
    baseOptions:{
     modelAssetPath:
-    "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/face_detector.tflite",
+    "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
     delegate:"CPU"
    },
    runningMode:"VIDEO",
