@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -83,8 +84,10 @@ button:disabled{opacity:.5}
  display:block;
  width:100%;
  height:100%;
- object-fit:contain;
+ object-fit:cover;
+ object-position:center;
  background:#000;
+ transform-origin:center center;
 }
 
 .caption{
@@ -122,9 +125,35 @@ button:disabled{opacity:.5}
 .timeRow{display:flex;gap:10px}
 .timeRow div{flex:1;min-width:0}
 
+.cropControls{
+ background:#222230;
+ padding:14px;
+ border-radius:12px;
+ margin-top:12px;
+}
+
+.cropButtons{
+ display:flex;
+ gap:10px;
+}
+
+.cropButtons button{
+ flex:1;
+}
+
+.cropButtons button.active{
+ background:linear-gradient(90deg,#9333ea,#d45cff);
+ border:1px solid #d58aff;
+}
+
+.cropControls input[type=range]{
+ width:100%;
+}
+
 @media(max-width:400px){
  .timeRow{gap:6px}
  .card{padding:14px}
+ .cropButtons{gap:6px}
 }
 </style>
 </head>
@@ -161,8 +190,41 @@ button:disabled{opacity:.5}
 </div>
 
 <p class="small">
-Preview is cropped to a vertical 9:16 frame.
+Preview uses your selected Smart Crop settings.
 </p>
+
+<div class="cropControls">
+
+<label><b>Smart Crop Mode</b></label>
+
+<div class="cropButtons">
+<button type="button" id="fillBtn"
+class="secondary active"
+onclick="setCropMode('fill')">
+Fill Screen
+</button>
+
+<button type="button" id="fitBtn"
+class="secondary"
+onclick="setCropMode('fit')">
+Fit Original
+</button>
+</div>
+
+<label>Zoom: <span id="zoomValue">1.00x</span></label>
+
+<input id="cropZoom"
+type="range"
+min="1"
+max="2.5"
+step="0.05"
+value="1">
+
+<p class="small">
+Center Crop • Export mein bhi same crop apply hoga.
+</p>
+
+</div>
 </div>
 
 <div class="card">
@@ -218,6 +280,7 @@ Export is processed in your browser. Keep this page open until the download begi
 </div>
 
 <script>
+
 const video = document.getElementById("video");
 const fileInput = document.getElementById("file");
 const statusBox = document.getElementById("status");
@@ -228,12 +291,54 @@ let previewTimer = null;
 let exporting = false;
 let clipStopHandler = null;
 
+/* SMART CROP */
+
+let cropMode = "fill";
+let cropZoom = 1;
+
+function setCropMode(mode){
+
+ cropMode = mode === "fit" ? "fit" : "fill";
+
+ video.style.objectFit =
+ cropMode === "fit" ? "contain" : "cover";
+
+ video.style.transform = "scale("+cropZoom+")";
+
+ document.getElementById("fillBtn").classList.toggle(
+  "active",cropMode === "fill"
+ );
+
+ document.getElementById("fitBtn").classList.toggle(
+  "active",cropMode === "fit"
+ );
+
+ status(
+  cropMode === "fit"
+  ? "Fit Original selected."
+  : "Fill Screen / Center Crop selected."
+ );
+}
+
+document.getElementById("cropZoom").addEventListener("input",event=>{
+
+ cropZoom = Number(event.target.value) || 1;
+
+ video.style.transform = "scale("+cropZoom+")";
+
+ document.getElementById("zoomValue").innerText =
+ cropZoom.toFixed(2)+"x";
+
+});
+
 /* STATUS */
+
 function status(text){
  statusBox.innerText = text;
 }
 
 /* CLIP TIME */
+
 function getStart(){
  return Number(document.getElementById("start").value) || 0;
 }
@@ -243,7 +348,9 @@ function getEnd(){
 }
 
 /* AI TIMING IMPORT */
+
 const clipParams = new URLSearchParams(window.location.search);
+
 const aiStart = clipParams.get("start");
 const aiEnd = clipParams.get("end");
 const aiTitle = clipParams.get("title");
@@ -251,6 +358,7 @@ const aiTitle = clipParams.get("title");
 function importAIClipTiming(startTime,endTime){
 
  function toSeconds(value){
+
   if(typeof value==="number") return value;
 
   const parts=String(value).trim().split(":").map(Number);
@@ -278,11 +386,14 @@ function importAIClipTiming(startTime,endTime){
  document.getElementById("end").value=end;
 
  status("AI clip timing imported: "+start+"s - "+end+"s");
+
  return true;
 }
 
 /* VIDEO UPLOAD */
+
 fileInput.addEventListener("change",()=>{
+
  const file=fileInput.files[0];
  if(!file)return;
 
@@ -309,6 +420,7 @@ fileInput.addEventListener("change",()=>{
  video.load();
 
  video.onloadedmetadata=()=>{
+
   const duration=video.duration;
 
   let start=0;
@@ -316,6 +428,7 @@ fileInput.addEventListener("change",()=>{
 
   if(aiStart!==null){
    const parsedStart=Number(aiStart);
+
    if(Number.isFinite(parsedStart)){
     start=Math.max(0,Math.min(parsedStart,duration));
    }
@@ -323,6 +436,7 @@ fileInput.addEventListener("change",()=>{
 
   if(aiEnd!==null){
    const parsedEnd=Number(aiEnd);
+
    if(Number.isFinite(parsedEnd)){
     end=Math.max(start,Math.min(parsedEnd,duration));
    }
@@ -346,7 +460,9 @@ fileInput.addEventListener("change",()=>{
 });
 
 /* TIME FORMAT */
+
 function formatTime(seconds){
+
  if(!Number.isFinite(seconds))return "00:00";
 
  const m=Math.floor(seconds/60);
@@ -357,7 +473,9 @@ function formatTime(seconds){
 }
 
 /* VALIDATION */
+
 function validateClip(){
+
  if(!video.src||!video.videoWidth){
   alert("Please upload a video first.");
   return false;
@@ -381,7 +499,9 @@ function validateClip(){
 }
 
 /* PREVIEW SELECTED CLIP */
+
 async function playClip(){
+
  if(!validateClip())return;
 
  stopClip();
@@ -394,9 +514,11 @@ async function playClip(){
  status("Preparing clip preview...");
 
  try{
+
   video.currentTime=start;
 
   await new Promise((resolve,reject)=>{
+
    if(Math.abs(video.currentTime-start)<0.1){
     resolve();
     return;
@@ -421,10 +543,14 @@ async function playClip(){
   status("Playing selected clip: "+formatTime(start)+" - "+formatTime(end));
 
   clipStopHandler=()=>{
+
    if(video.currentTime>=end){
+
     video.pause();
+
     video.removeEventListener("timeupdate",clipStopHandler);
     clipStopHandler=null;
+
     status("Clip preview finished.");
    }
   };
@@ -432,12 +558,15 @@ async function playClip(){
   video.addEventListener("timeupdate",clipStopHandler);
 
  }catch(error){
+
   status("Preview error: "+error.message);
  }
 }
 
 /* STOP */
+
 function stopClip(){
+
  video.pause();
 
  if(clipStopHandler){
@@ -452,46 +581,102 @@ function stopClip(){
 }
 
 /* CAPTIONS */
+
 function updateCaption(){
+
  const text=document.getElementById("captionText").value;
  const box=document.getElementById("captionPreview");
 
  box.innerText=text;
- box.className="caption "+document.getElementById("captionPosition").value;
- box.style.fontSize=document.getElementById("captionSize").value+"px";
+
+ box.className="caption "+
+ document.getElementById("captionPosition").value;
+
+ box.style.fontSize=
+ document.getElementById("captionSize").value+"px";
 }
 
 document.getElementById("captionText").addEventListener("input",updateCaption);
+
 document.getElementById("captionPosition").addEventListener("change",updateCaption);
+
 document.getElementById("captionSize").addEventListener("input",updateCaption);
 
-/* DRAW VERTICAL VIDEO */
+/* DRAW VERTICAL VIDEO - SMART CROP */
+
 function drawVertical(ctx,canvas){
+
  if(!video.videoWidth||!video.videoHeight)return;
 
  const vw=video.videoWidth;
  const vh=video.videoHeight;
+
  const targetRatio=9/16;
  const videoRatio=vw/vh;
 
- let sx=0,sy=0,sw=vw,sh=vh;
-
- if(videoRatio>targetRatio){
-  sw=vh*targetRatio;
-  sx=(vw-sw)/2;
- }else{
-  sh=vw/targetRatio;
-  sy=(vh-sh)/2;
- }
+ const zoom=cropZoom;
 
  ctx.clearRect(0,0,canvas.width,canvas.height);
 
- ctx.drawImage(video,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+ ctx.fillStyle="#000";
+ ctx.fillRect(0,0,canvas.width,canvas.height);
+
+ /* FIT ORIGINAL */
+
+ if(cropMode==="fit"){
+
+  const scale=Math.min(
+   canvas.width/vw,
+   canvas.height/vh
+  )*zoom;
+
+  const dw=vw*scale;
+  const dh=vh*scale;
+
+  const dx=(canvas.width-dw)/2;
+  const dy=(canvas.height-dh)/2;
+
+  ctx.drawImage(video,dx,dy,dw,dh);
+
+ }
+
+ /* FILL SCREEN / CENTER CROP */
+
+ else{
+
+  let sx=0;
+  let sy=0;
+  let sw=vw;
+  let sh=vh;
+
+  if(videoRatio>targetRatio){
+
+   sw=vh*targetRatio/zoom;
+   sx=(vw-sw)/2;
+
+  }else{
+
+   sh=vw/targetRatio/zoom;
+   sy=(vh-sh)/2;
+
+  }
+
+  ctx.drawImage(
+   video,
+   sx,sy,sw,sh,
+   0,0,canvas.width,canvas.height
+  );
+
+ }
+
+ /* CAPTIONS */
 
  const text=document.getElementById("captionText").value.trim();
 
  if(text){
+
   const position=document.getElementById("captionPosition").value;
+
   const fontSize=Number(document.getElementById("captionSize").value)*2;
 
   ctx.font="bold "+fontSize+"px Arial";
@@ -499,11 +684,13 @@ function drawVertical(ctx,canvas){
   ctx.textBaseline="middle";
 
   const maxWidth=canvas.width*.88;
+
   const words=text.split(/\s+/);
   const lines=[];
   let line="";
 
   for(const word of words){
+
    const test=line?line+" "+word:word;
 
    if(ctx.measureText(test).width>maxWidth&&line){
@@ -512,6 +699,7 @@ function drawVertical(ctx,canvas){
    }else{
     line=test;
    }
+
   }
 
   if(line)lines.push(line);
@@ -534,15 +722,20 @@ function drawVertical(ctx,canvas){
   ctx.fillStyle="#fff";
 
   for(const ln of lines){
+
    ctx.strokeText(ln,canvas.width/2,y,maxWidth);
    ctx.fillText(ln,canvas.width/2,y,maxWidth);
+
    y+=lineHeight;
   }
+
  }
 }
 
 /* RECORDING SUPPORT */
+
 function supportedMime(){
+
  const types=[
   "video/webm;codecs=vp9,opus",
   "video/webm;codecs=vp8,opus",
@@ -557,7 +750,9 @@ function supportedMime(){
 }
 
 /* EXPORT */
+
 async function exportVideo(){
+
  if(exporting)return;
  if(!validateClip())return;
 
@@ -580,55 +775,77 @@ async function exportVideo(){
  const end=getEnd();
 
  const canvas=document.createElement("canvas");
+
  canvas.width=720;
  canvas.height=1280;
 
  const ctx=canvas.getContext("2d");
+
  const canvasStream=canvas.captureStream(30);
 
  let combinedStream=canvasStream;
 
  /* AUDIO */
+
  try{
+
   if(video.captureStream){
+
    const sourceStream=video.captureStream();
+
    sourceStream.getAudioTracks().forEach(track=>{
     combinedStream.addTrack(track);
    });
+
   }
+
  }catch(e){
+
   console.log("Audio capture unavailable",e);
+
  }
 
  let recorder;
  let chunks=[];
 
  try{
+
   recorder=new MediaRecorder(combinedStream,{mimeType:mime});
+
  }catch(e){
+
   status("Could not start recording: "+e.message);
+
   exporting=false;
   exportBtn.disabled=false;
+
   return;
  }
 
  recorder.ondataavailable=event=>{
+
   if(event.data&&event.data.size>0){
    chunks.push(event.data);
   }
+
  };
 
  recorder.onerror=()=>{
+
   status("Recording error. Try a shorter clip.");
+
  };
 
  recorder.onstop=()=>{
+
   const blob=new Blob(chunks,{type:mime});
   const url=URL.createObjectURL(blob);
 
   const a=document.createElement("a");
+
   a.href=url;
   a.download="clipai-short.webm";
+
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -644,10 +861,17 @@ async function exportVideo(){
  };
 
  try{
+
   video.pause();
   video.currentTime=start;
 
   await new Promise((resolve,reject)=>{
+
+   if(Math.abs(video.currentTime-start)<0.1){
+    resolve();
+    return;
+   }
+
    const timeout=setTimeout(()=>{
     reject(new Error("Video seek timed out"));
    },10000);
@@ -657,24 +881,29 @@ async function exportVideo(){
     video.onseeked=null;
     resolve();
    };
+
   });
 
   recorder.start(250);
+
   await video.play();
 
   status("Exporting video... Please wait.");
 
   const render=()=>{
+
    if(!exporting)return;
 
    drawVertical(ctx,canvas);
 
    if(video.currentTime>=end||video.ended){
+
     video.pause();
 
     if(recorder.state!=="inactive"){
      recorder.stop();
     }
+
     return;
    }
 
@@ -684,6 +913,7 @@ async function exportVideo(){
   requestAnimationFrame(render);
 
  }catch(error){
+
   if(recorder&&recorder.state!=="inactive"){
    recorder.stop();
   }
@@ -692,8 +922,11 @@ async function exportVideo(){
 
   exporting=false;
   exportBtn.disabled=false;
+
  }
+
 }
+
 </script>
 
 </body>
